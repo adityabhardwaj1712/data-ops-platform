@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv
+
+# SQLite / data
+*.db
+backend_fastapi/data/
+backend_fastapi/exports/
+backend_fastapi/app/**/__pycache__/
+
+# Node / frontend
+node_modules/
+.next/
+dist/
+
+# Docker
+*.log
+
+# OS
+.DS_Store
+
