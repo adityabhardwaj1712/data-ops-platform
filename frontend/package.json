@@ -10,9 +10,9 @@
   },
   "dependencies": {
     "next": "^15.0.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "axios": "^1.6.7",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    
     "next-themes": "^0.3.0",
 
     "@radix-ui/react-dialog": "^1.0.5",
@@ -31,10 +31,12 @@
     "clsx": "^2.1.0",
     "framer-motion": "^11.0.3",
     "lucide-react": "^0.344.0",
-    "recharts": "^2.9.3",
     "tailwind-merge": "^2.2.1",
     "tailwindcss-animate": "^1.0.7",
-    "@monaco-editor/react": "^4.6.0"
+    
+    "dayjs": "^1.11.10",
+    "chart.js": "^4.4.0",
+    "react-chartjs-2": "^5.2.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.17",

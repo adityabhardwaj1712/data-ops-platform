@@ -1,10 +1,19 @@
+# ============================================
+# LIGHTWEIGHT DOCKER COMPOSE CONFIGURATION
+# Optimized for AWS free tier (8GB volume limit)
+# ============================================
+
 services:
-  backend:
+  # ============================================
+  # LIGHTWEIGHT API SERVICE
+  # Always running, minimal memory footprint
+  # ============================================
+  api:
     build:
       context: ./backend_fastapi
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.api
 
-    container_name: dataops_backend
+    container_name: dataops_api
 
     ports:
       - "8000:8000"
@@ -12,6 +21,7 @@ services:
     environment:
       DATABASE_URL: sqlite+aiosqlite:///./data/dataops.db
       LOG_LEVEL: INFO
+      WORKER_ENABLED: "false" # API doesn't run workers
 
     volumes:
       - ./backend_fastapi/data:/app/data
@@ -19,14 +29,102 @@ services:
 
     restart: unless-stopped
 
+    # Resource limits (lightweight)
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          memory: 256M
+
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health/liveness"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health/liveness" ]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 30s
+      retries: 3
+      start_period: 10s
 
+  # ============================================
+  # HEAVY BACKGROUND WORKER SERVICE
+  # Runs only when jobs are queued
+  # ============================================
+  worker:
+    build:
+      context: ./backend_fastapi
+      dockerfile: Dockerfile.worker
 
+    container_name: dataops_worker
+
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:///./data/dataops.db
+      LOG_LEVEL: INFO
+      WORKER_ENABLED: "true"
+      WORKER_CONCURRENCY: 2
+      WORKER_POLL_INTERVAL: 5
+
+    volumes:
+      - ./backend_fastapi/data:/app/data
+      - ./backend_fastapi/exports:/app/exports
+
+    restart: unless-stopped
+
+    # Resource limits (heavier for processing)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          memory: 512M
+
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # ============================================
+  # REDIS CACHE (OPTIONAL)
+  # Improves performance for visualization & analytics
+  # ============================================
+  redis:
+    image: redis:7-alpine
+
+    container_name: dataops_redis
+
+    ports:
+      - "6379:6379"
+
+    command: redis-server --appendonly yes
+
+    volumes:
+      - redis_data:/data
+
+    restart: unless-stopped
+
+    # Resource limits (lightweight)
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          memory: 128M
+
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+    # Optional: comment out to disable Redis caching
+    profiles:
+      - full
+
+  # ============================================
+  # FRONTEND SERVICE (OPTIONAL)
+  # Can be disabled to save resources
+  # Or run locally during development
+  # ============================================
   frontend:
     build:
       context: ./frontend
@@ -40,7 +138,45 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
 
+    # Resource limits (lightweight)
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
     depends_on:
-      backend:
+      api:
         condition: service_healthy
 
+    # Optional: comment out to disable frontend
+    profiles:
+      - full
+
+# ============================================
+# VOLUMES
+# ============================================
+volumes:
+  redis_data:
+    driver: local
+
+# ============================================
+# USAGE INSTRUCTIONS
+# ============================================
+#
+# Start API + Worker only (minimal):
+#   docker compose up -d api worker
+#
+# Start everything including frontend:
+#   docker compose --profile full up -d
+#
+# Scale workers (if needed):
+#   docker compose up -d --scale worker=2
+#
+# Stop worker to save resources:
+#   docker compose stop worker
+#
+# Monitor resource usage:
+#   docker stats
+#
+# ============================================

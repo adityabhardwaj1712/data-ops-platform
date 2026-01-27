@@ -65,14 +65,18 @@ class PipelineResponse(BaseModel):
 # ENDPOINTS
 # ═══════════════════════════════════════════════════════════════════
 
-@router.post("/", response_model=PipelineResponse)
-async def run_pipeline(request: PipelineRequest):
+@router.post("/run")
+async def run_pipeline(
+    request: PipelineRequest,
+    db: AsyncSession = Depends(get_db)
+):
     """
-    Run the 5-layer scraping pipeline.
+    Create a pipeline job (async execution).
+    Returns job_id immediately, pipeline runs in background worker.
     
-    This is the main entry point for intelligent scraping.
+    Use GET /api/jobs/{job_id} to check status and get results.
     
-    Layers:
+    Layers (executed in worker):
     1. Source Manager - Handles multiple URLs + pagination
     2. Fetch Engine - Gets HTML (no parsing)
     3. Content Cleaner - Removes noise, gets clean markdown
@@ -87,31 +91,45 @@ async def run_pipeline(request: PipelineRequest):
     is_valid, error = validate_job_request(request.from_where, request.max_pages_per_source)
     if not is_valid:
         raise HTTPException(status_code=400, detail=error)
-        
-    pipeline = ScraperPipeline()
     
-    # Map string to enum
-    mode = ExtractionMode.AI_ASSISTED if request.extraction_mode == "ai" else ExtractionMode.HEURISTIC
-    
-    result = await pipeline.run(
-        what_i_want=request.what_i_want,
-        from_where=request.from_where,
+    # Create job
+    job = Job(
+        description=request.what_i_want,
         schema=request.schema,
-        extraction_mode=mode,
-        max_pages_per_source=request.max_pages_per_source
+        config={
+            "urls": request.from_where,
+            "extraction_mode": request.extraction_mode,
+            "max_pages": request.max_pages_per_source
+        },
+        status=DBJobStatus.PENDING
+    )
+    db.add(job)
+    await db.commit()
+    await db.refresh(job)
+    
+    # Enqueue pipeline job for background processing
+    from app.queue.job_queue import job_queue
+    
+    await job_queue.enqueue(
+        job_id=job.id,
+        job_type="PIPELINE",
+        payload={
+            "what_i_want": request.what_i_want,
+            "from_where": request.from_where,
+            "schema": request.schema,
+            "extraction_mode": request.extraction_mode,
+            "max_pages_per_source": request.max_pages_per_source
+        },
+        priority=3  # Higher priority than regular scrapes
     )
     
-    return PipelineResponse(
-        success=result.success,
-        data=result.data,
-        sources_processed=result.sources_processed,
-        sources_successful=result.sources_successful,
-        average_confidence=round(result.total_confidence, 2),
-        confidence_action=result.confidence_action,
-        cleaning_stats=result.cleaning_stats,
-        extraction_stats=result.extraction_stats,
-        errors=result.errors
-    )
+    return {
+        "job_id": str(job.id),
+        "status": "queued",
+        "message": "Pipeline job queued. Use GET /api/jobs/{job_id} to check status.",
+        "sources": len(request.from_where),
+        "extraction_mode": request.extraction_mode
+    }
 
 
 @router.post("/with-job", response_model=PipelineResponse)

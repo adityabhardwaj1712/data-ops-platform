@@ -5,10 +5,12 @@ import logging
 
 from app.api import (
     jobs, tasks, scrape, hitl, audit, pipeline, robots, export, templates,
-    analytics, websocket, search, backup, notifications, batch
+    analytics, websocket, search, backup, notifications, batch, visualization,
+    ai, quality, automation
 )
 from app.core.config import settings
 from app.core.logging_config import setup_logging
+import os
 from app.core.middleware import (
     RequestLoggingMiddleware,
     ErrorHandlingMiddleware,
@@ -34,8 +36,17 @@ async def lifespan(app: FastAPI):
     
     logger.info("Database tables initialized")
     
-    # Start background services
-    if settings.ENABLE_BACKGROUND_JOBS:
+    # Start background worker (if enabled)
+    worker_enabled = os.getenv("WORKER_ENABLED", "false").lower() == "true"
+    if worker_enabled:
+        from app.worker.main import worker_service
+        await worker_service.start()
+        logger.info("Background worker service started")
+    else:
+        logger.info("Worker service disabled (API-only mode)")
+    
+    # Start background scheduler (if enabled)
+    if settings.ENABLE_BACKGROUND_JOBS and not worker_enabled:
         from app.services.scheduler import scheduler
         await scheduler.start()
         logger.info("Background job scheduler started")
@@ -47,8 +58,15 @@ async def lifespan(app: FastAPI):
     # Cleanup on shutdown
     logger.info("Shutting down DataOps Platform")
     
-    # Stop background services
-    if settings.ENABLE_BACKGROUND_JOBS:
+    # Stop worker service (if enabled)
+    worker_enabled = os.getenv("WORKER_ENABLED", "false").lower() == "true"
+    if worker_enabled:
+        from app.worker.main import worker_service
+        await worker_service.stop()
+        logger.info("Worker service stopped")
+    
+    # Stop background scheduler (if enabled)
+    if settings.ENABLE_BACKGROUND_JOBS and not worker_enabled:
         from app.services.scheduler import scheduler
         await scheduler.stop()
     
@@ -77,22 +95,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routes
+# Include routers
+app.include_router(scrape.router, prefix="/api/scrape", tags=["Scraping"])
 app.include_router(jobs.router, prefix="/api/jobs", tags=["Jobs"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["Tasks"])
-app.include_router(scrape.router, prefix="/api/scrape", tags=["Scraping"])
-app.include_router(pipeline.router, prefix="/api/pipeline", tags=["5-Layer Pipeline"])
-app.include_router(hitl.router, prefix="/api/hitl", tags=["Human-in-the-Loop"])
-app.include_router(audit.router, prefix="/api/audit", tags=["Audit"])
-app.include_router(robots.router, prefix="/api/robots", tags=["Robots.txt"])
-app.include_router(export.router, prefix="/api/export", tags=["Export"])
-app.include_router(templates.router, prefix="/api/templates", tags=["Intent Templates"])
+app.include_router(pipeline.router, prefix="/api/pipeline", tags=["Pipeline"])
+app.include_router(websocket.router, tags=["Real-time"])
 app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"])
-app.include_router(websocket.router, tags=["WebSocket"])
+app.include_router(visualization.router, prefix="/api/visualization", tags=["Visualization"])
+app.include_router(export.router, prefix="/api/export", tags=["Export"])
 app.include_router(search.router, prefix="/api/search", tags=["Search"])
-app.include_router(backup.router, prefix="/api/backup", tags=["Backup & Restore"])
+app.include_router(audit.router, prefix="/api/audit", tags=["Audit"])
+app.include_router(backup.router, prefix="/api/backup", tags=["Backup"])
+app.include_router(hitl.router, prefix="/api/hitl", tags=["Human in the Loop"])
+app.include_router(robots.router, prefix="/api/robots", tags=["Robots"])
+app.include_router(templates.router, prefix="/api/templates", tags=["Templates"])
+app.include_router(batch.router, prefix="/api/batch", tags=["Batch"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
-app.include_router(batch.router, prefix="/api/batch", tags=["Batch Operations"])
+app.include_router(visualization.router, prefix="/api/viz", tags=["visualization"])
+app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
+app.include_router(quality.router, prefix="/api/quality", tags=["quality"])
+app.include_router(automation.router, prefix="/api/automation", tags=["Automation"])
+app.include_router(websocket.router, prefix="/ws", tags=["websocket"])
+
 
 # Health check routes
-app.include_router(health_router, tags=["Health"])
+app.include_router(health_router, tags=["health"])
