@@ -10,6 +10,11 @@ uvicorn[standard]==0.27.0
 pydantic==2.6.0
 pydantic-settings==2.1.0
 
+# Data & logic
+deepdiff>=6.7.0
+pandas>=2.1.0
+openpyxl>=3.1.2
+
 # Database (Async SQLite support)
 sqlalchemy==2.0.25
 alembic==1.13.1

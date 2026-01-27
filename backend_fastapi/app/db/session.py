@@ -21,12 +21,15 @@ engine = create_async_engine(
     pool_pre_ping=True,
 )
 
-# Async session factory
+# Async session factory (PRIMARY)
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
     expire_on_commit=False,
 )
+
+# ✅ BACKWARD-COMPATIBLE ALIAS (THIS FIXES YOUR ERROR)
+async_session_factory = AsyncSessionLocal
 
 
 class Base(DeclarativeBase):
@@ -46,5 +49,4 @@ async def get_db():
         except Exception:
             await session.rollback()
             raise
-
 

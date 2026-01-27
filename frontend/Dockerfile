@@ -1,50 +1,42 @@
-# ============================================
-# OPTIMIZED FRONTEND DOCKER IMAGE
-# Multi-stage build for minimal runtime size
-# ============================================
+# ================================
+# FRONTEND – LOW DISK SAFE BUILD
+# ================================
 
-# Stage 1: Dependencies
-FROM node:20-alpine AS deps
+# -------- Stage 1: Build --------
+FROM node:20-alpine AS builder
+
 WORKDIR /app
 
-# Copy package files
+# Reduce npm cache size
+ENV npm_config_cache=/tmp/.npm
+
+# Copy only required files first (better cache)
 COPY package.json package-lock.json* ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install deps (prod + build deps)
+RUN npm install --legacy-peer-deps --no-audit --no-fund
 
-# Stage 2: Builder
-FROM node:20-alpine AS builder
-WORKDIR /app
-
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
-
-# Copy application code
+# Copy source
 COPY . .
 
-# Build Next.js application
+# Build Next.js (static export)
 RUN npm run build
 
-# Stage 3: Runner (Production)
-FROM nginx:alpine AS runner
+# -------- Stage 2: Runtime --------
+FROM nginx:alpine
 
-# Copy built static files from builder
+# Remove default nginx config
+RUN rm /etc/nginx/conf.d/default.conf
+
+# Copy custom nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copy ONLY the build output
 COPY --from=builder /app/out /usr/share/nginx/html
 
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
-
-# Expose port
+# Expose frontend port
 EXPOSE 3000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]
 
-# ============================================
-# Result: ~50MB (vs 800MB with node_modules)
-# ============================================

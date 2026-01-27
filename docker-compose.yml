@@ -1,13 +1,9 @@
-# ============================================
-# LIGHTWEIGHT DOCKER COMPOSE CONFIGURATION
-# Optimized for AWS free tier (8GB volume limit)
-# ============================================
+version: "3.9"
 
 services:
-  # ============================================
-  # LIGHTWEIGHT API SERVICE
-  # Always running, minimal memory footprint
-  # ============================================
+  # =====================================
+  # BACKEND API (FastAPI)
+  # =====================================
   api:
     build:
       context: ./backend_fastapi
@@ -19,9 +15,9 @@ services:
       - "8000:8000"
 
     environment:
-      DATABASE_URL: sqlite+aiosqlite:///./data/dataops.db
+      DATABASE_URL: sqlite+aiosqlite:////app/data/dataops.db
       LOG_LEVEL: INFO
-      WORKER_ENABLED: "false" # API doesn't run workers
+      WORKER_ENABLED: "false"
 
     volumes:
       - ./backend_fastapi/data:/app/data
@@ -29,26 +25,25 @@ services:
 
     restart: unless-stopped
 
-    # Resource limits (lightweight)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/liveness"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
     deploy:
       resources:
         limits:
-          cpus: '0.5'
+          cpus: "0.5"
           memory: 512M
         reservations:
           memory: 256M
 
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8000/health/liveness" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
-  # ============================================
-  # HEAVY BACKGROUND WORKER SERVICE
-  # Runs only when jobs are queued
-  # ============================================
+  # =====================================
+  # BACKGROUND WORKER (Scraping / Jobs)
+  # =====================================
   worker:
     build:
       context: ./backend_fastapi
@@ -57,10 +52,10 @@ services:
     container_name: dataops_worker
 
     environment:
-      DATABASE_URL: sqlite+aiosqlite:///./data/dataops.db
+      DATABASE_URL: sqlite+aiosqlite:////app/data/dataops.db
       LOG_LEVEL: INFO
       WORKER_ENABLED: "true"
-      WORKER_CONCURRENCY: 2
+      WORKER_CONCURRENCY: 1
       WORKER_POLL_INTERVAL: 5
 
     volumes:
@@ -69,62 +64,22 @@ services:
 
     restart: unless-stopped
 
-    # Resource limits (heavier for processing)
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
-        reservations:
-          memory: 512M
-
     depends_on:
       api:
         condition: service_healthy
 
-  # ============================================
-  # REDIS CACHE (OPTIONAL)
-  # Improves performance for visualization & analytics
-  # ============================================
-  redis:
-    image: redis:7-alpine
-
-    container_name: dataops_redis
-
-    ports:
-      - "6379:6379"
-
-    command: redis-server --appendonly yes
-
-    volumes:
-      - redis_data:/data
-
-    restart: unless-stopped
-
-    # Resource limits (lightweight)
     deploy:
       resources:
         limits:
-          cpus: '0.5'
-          memory: 256M
+          cpus: "1.5"
+          memory: 1.5G
         reservations:
-          memory: 128M
+          memory: 512M
 
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 10s
-      timeout: 3s
-      retries: 3
 
-    # Optional: comment out to disable Redis caching
-    profiles:
-      - full
-
-  # ============================================
-  # FRONTEND SERVICE (OPTIONAL)
-  # Can be disabled to save resources
-  # Or run locally during development
-  # ============================================
+  # =====================================
+  # FRONTEND (Next.js / React)
+  # =====================================
   frontend:
     build:
       context: ./frontend
@@ -136,47 +91,17 @@ services:
       - "3000:3000"
 
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-
-    # Resource limits (lightweight)
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
+      NEXT_PUBLIC_API_URL: http://api:8000
 
     depends_on:
       api:
         condition: service_healthy
 
-    # Optional: comment out to disable frontend
-    profiles:
-      - full
+    restart: unless-stopped
 
-# ============================================
-# VOLUMES
-# ============================================
-volumes:
-  redis_data:
-    driver: local
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
 
-# ============================================
-# USAGE INSTRUCTIONS
-# ============================================
-#
-# Start API + Worker only (minimal):
-#   docker compose up -d api worker
-#
-# Start everything including frontend:
-#   docker compose --profile full up -d
-#
-# Scale workers (if needed):
-#   docker compose up -d --scale worker=2
-#
-# Stop worker to save resources:
-#   docker compose stop worker
-#
-# Monitor resource usage:
-#   docker stats
-#
-# ============================================
