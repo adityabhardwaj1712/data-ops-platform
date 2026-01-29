@@ -1,280 +1,87 @@
-# DataOps Platform - Lightweight Architecture
+# DataOps Scraper: Reliable, Human-Verified Data Extraction
 
-## 🚀 Quick Start
+A pro-level web scraping system designed for trust, reliability, and human oversight. This project implements a modular, config-driven architecture that ensures data integrity through strict validation and an integrated Human-In-The-Loop (HITL) flow.
 
-### Option 1: API + Worker (Recommended for AWS Free Tier)
+## 🏗️ Core Architecture
+
+The system is built on a modular "Fetch-Validate-Score" pipeline, replacing monolithic scraping engines with specialized components.
+
+### 📁 File Structure
+
+```text
+backend_fastapi/
+├── app/
+│   ├── scraper/                # Core Scraping Logic
+│   │   ├── analyzer.py         # Strategy detection (Static vs Browser vs Stealth)
+│   │   ├── base.py             # Base scraper strategies with retry logic
+│   │   ├── generic.py          # Central Orchestrator (The "Brain")
+│   │   ├── validator.py        # Strict post-scrape integrity checks
+│   │   ├── confidence.py       # 0-100 Scoring logic
+│   │   ├── artifacts.py        # Local storage for HTML/Screenshots
+│   │   └── extractors/         # Data extraction strategies
+│   │       ├── config.py       # Strict CSS selector-based extraction
+│   │       └── auto.py         # Heuristic & Regex based extraction
+│   ├── worker/                 # Background job processing
+│   │   └── executors/
+│   │       └── scrape_executor.py  # Orchestrates GenericScraper in workers
+│   └── api/                    # Lean REST API endpoints
+│       ├── scrape.py           # Job submission & status
+│       └── hitl.py             # Human-In-The-Loop management
+└── data/
+    ├── artifacts/              # HTML dumps and screenshots (Job IDs)
+    └── deliveries/             # Final validated data versions
+```
+
+## 🚀 Key Features
+
+### 1. Modular Fetching Pipeline
+The system automatically chooses the lightest fetch strategy possible:
+- **Static**: Fast HTTP requests for simple sites.
+- **Browser**: Full JS rendering using Playwright.
+- **Stealth**: Advanced anti-bot evasion for protected sites.
+
+### 2. Strict Data Validation
+Every scrape results in a validation report checking for:
+- Empty fields or missing required data.
+- Duplicate rows.
+- Schema compliance.
+
+### 3. Confidence Scoring & HITL
+If a scrape has a confidence score < 85 or fails validation, it is automatically routed to the **Human review queue**.
+- Inspect screenshots of what the scraper saw.
+- Edit CSS selectors in real-time.
+- Re-run the job with high priority.
+
+## 🛠️ Quick Start
+
+### Start the System
 ```bash
-# Start API and Worker services
 docker compose up -d api worker
-
-# Check status
-docker compose ps
-
-# View logs
-docker compose logs -f api
-docker compose logs -f worker
 ```
 
-### Option 2: Full Stack (includes Frontend)
+### Start a Scrape (Config-Driven)
 ```bash
-# Start all services
-docker compose --profile full up -d
-```
-
-### Option 3: API Only (Minimal Resources)
-```bash
-# Start only the API (no background processing)
-docker compose up -d api
-```
-
-## 📊 Resource Usage
-
-| Service | Memory | Disk | Startup Time |
-|---------|--------|------|--------------|
-| API | <200MB | ~200MB | <5s |
-| Worker | <1GB (idle) | ~1.5GB | ~10s |
-| Frontend | ~300MB | ~300MB | ~5s |
-| **Total** | **<1.5GB** | **<3GB** | **<20s** |
-
-✅ **AWS Free Tier Compatible** (8GB volume limit)
-
-## 🏗️ Architecture
-
-### Lightweight API Core (Always Running)
-- Handles HTTP requests
-- Manages job queue
-- Updates job status
-- Serves WebSocket connections
-- **No heavy dependencies loaded**
-
-### Background Worker (On-Demand)
-- Processes jobs from queue
-- Lazy-loads heavy libraries only when needed
-- Executes scraping, pipeline, export jobs
-- Can be scaled horizontally
-
-### Job Flow
-```
-1. User → POST /api/scrape → API creates job → Returns job_id immediately
-2. API → Enqueues job → Job queue
-3. Worker → Dequeues job → Lazy-loads scraper → Executes → Updates status
-4. User → GET /api/scrape/{job_id} → Gets result
-```
-
-## 📝 API Changes
-
-### Before (Synchronous)
-```bash
-POST /api/scrape
-# Waits 30-60s for scraping to complete
-# Returns result immediately
-```
-
-### After (Asynchronous)
-```bash
-# 1. Create job (returns immediately)
-POST /api/scrape
-Response: {"job_id": "...", "status": "queued"}
-
-# 2. Check status (poll every few seconds)
-GET /api/scrape/{job_id}
-Response: {"status": "running", ...}
-
-# 3. Get result when completed
-GET /api/scrape/{job_id}
-Response: {"status": "completed", "result": {...}}
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-**API Service:**
-```env
-DATABASE_URL=sqlite+aiosqlite:///./data/dataops.db
-LOG_LEVEL=INFO
-WORKER_ENABLED=false  # API doesn't run workers
-```
-
-**Worker Service:**
-```env
-DATABASE_URL=sqlite+aiosqlite:///./data/dataops.db
-LOG_LEVEL=INFO
-WORKER_ENABLED=true
-WORKER_CONCURRENCY=2  # Number of parallel workers
-WORKER_POLL_INTERVAL=5  # Seconds between queue polls
-```
-
-## 🐳 Docker Commands
-
-```bash
-# Build images
-docker compose build
-
-# Start services
-docker compose up -d api worker
-
-# Scale workers
-docker compose up -d --scale worker=2
-
-# Stop worker to save resources
-docker compose stop worker
-
-# Monitor resource usage
-docker stats
-
-# View logs
-docker compose logs -f api
-docker compose logs -f worker
-
-# Restart services
-docker compose restart api worker
-
-# Clean up
-docker compose down
-docker compose down -v  # Remove volumes too
-```
-
-## 📦 Deployment
-
-### AWS Free Tier (t2.micro, 8GB volume)
-```bash
-# 1. SSH into EC2 instance
-ssh -i key.pem ec2-user@your-instance
-
-# 2. Clone repository
-git clone <your-repo>
-cd data-ops-platform-1
-
-# 3. Start services (API + Worker only)
-docker compose up -d api worker
-
-# 4. Verify
-curl http://localhost:8000/health
-```
-
-### Resource Monitoring
-```bash
-# Check disk usage
-du -sh .
-df -h
-
-# Check memory usage
-free -h
-docker stats
-
-# Check running containers
-docker compose ps
-```
-
-## 🧪 Testing
-
-### Test API Startup
-```bash
-# Should start in <5 seconds
-time docker compose up -d api
-
-# Check health
-curl http://localhost:8000/health/liveness
-```
-
-### Test Job Execution
-```bash
-# 1. Create a scraping job
 curl -X POST http://localhost:8000/api/scrape \
   -H "Content-Type: application/json" \
   -d '{
-    "url": "https://example.com",
-    "schema": {"title": "string"},
-    "strategy": "static"
+    "url": "https://example.com/products",
+    "schema": {
+      "container": ".product-card",
+      "fields": {
+        "title": "h2.title",
+        "price": ".price-tag"
+      }
+    }
   }'
-
-# Response: {"job_id": "...", "status": "queued"}
-
-# 2. Check job status
-curl http://localhost:8000/api/scrape/{job_id}
-
-# 3. Get results (when status=completed)
-curl http://localhost:8000/api/scrape/{job_id}
 ```
 
-## 🔍 Troubleshooting
+### Review Jobs (Frontend)
+Visit `http://localhost:3000/review/[job_id]` to use the Human-In-The-Loop interface for failed or low-confidence scrapes.
 
-### API won't start
-```bash
-# Check logs
-docker compose logs api
+## 🔒 Security & Reliability
+- **Retry Mechanism**: Exponential backoff on fetch failures.
+- **Robots.txt**: Full compliance with target domain rules.
+- **Artifact Auditing**: Full transparency into what was scraped and why it was scored.
 
-# Verify dependencies
-docker compose exec api pip list
-```
-
-### Worker not processing jobs
-```bash
-# Check worker logs
-docker compose logs worker
-
-# Verify worker is running
-docker compose ps worker
-
-# Check queue status
-curl http://localhost:8000/api/analytics/dashboard
-```
-
-### Out of memory
-```bash
-# Stop worker temporarily
-docker compose stop worker
-
-# Reduce worker concurrency
-# Edit docker-compose.yml: WORKER_CONCURRENCY=1
-docker compose up -d worker
-```
-
-### Disk space issues
-```bash
-# Check disk usage
-df -h
-
-# Clean up old Docker images
-docker system prune -a
-
-# Remove old exports
-rm -rf backend_fastapi/exports/*
-```
-
-## 📈 Performance Improvements
-
-| Metric | Before | After | Improvement |
-|--------|--------|-------|-------------|
-| API Startup | 30-60s | <5s | **90% faster** |
-| API Memory | 1.5-2GB | <200MB | **90% reduction** |
-| Docker Image (API) | 2GB+ | <300MB | **85% reduction** |
-| Total Disk | 8GB+ | <3GB | **60% reduction** |
-| AWS Free Tier | ❌ No | ✅ Yes | **Achieved** |
-
-## ✅ Features Preserved
-
-All features remain 100% functional:
-- ✅ Scraping (static, browser, stealth)
-- ✅ 6-layer pipeline
-- ✅ HITL review
-- ✅ Export (Excel, CSV, JSON)
-- ✅ Analytics dashboard
-- ✅ WebSocket updates
-- ✅ Search functionality
-- ✅ Backup/restore
-- ✅ Batch operations
-- ✅ Notifications
-
-## 🔐 Security
-
-- Non-root containers
-- Resource limits enforced
-- Rate limiting enabled
-- Security headers configured
-- Secrets via environment variables
-
-## 📄 License
-
-MIT License
+---
+© 2026 DataOps Reliable Scraper System
