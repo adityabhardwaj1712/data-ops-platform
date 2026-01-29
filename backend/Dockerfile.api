@@ -15,10 +15,10 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy core requirements only
-COPY requirements-core.txt .
+COPY requirements.txt .
 
 # Install Python dependencies (lightweight)
-RUN pip install --no-cache-dir -r requirements-core.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY app ./app

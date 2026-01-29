@@ -6,7 +6,7 @@ services:
   # =====================================
   api:
     build:
-      context: ./backend_fastapi
+      context: ./backend
       dockerfile: Dockerfile.api
 
     container_name: dataops_api
@@ -20,13 +20,13 @@ services:
       WORKER_ENABLED: "false"
 
     volumes:
-      - ./backend_fastapi/data:/app/data
-      - ./backend_fastapi/exports:/app/exports
+      - ./backend/data:/app/data
+      - ./backend/exports:/app/exports
 
     restart: unless-stopped
 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health/liveness"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health/liveness" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -40,13 +40,12 @@ services:
         reservations:
           memory: 256M
 
-
   # =====================================
   # BACKGROUND WORKER (Scraping / Jobs)
   # =====================================
   worker:
     build:
-      context: ./backend_fastapi
+      context: ./backend
       dockerfile: Dockerfile.worker
 
     container_name: dataops_worker
@@ -59,8 +58,8 @@ services:
       WORKER_POLL_INTERVAL: 5
 
     volumes:
-      - ./backend_fastapi/data:/app/data
-      - ./backend_fastapi/exports:/app/exports
+      - ./backend/data:/app/data
+      - ./backend/exports:/app/exports
 
     restart: unless-stopped
 
@@ -75,7 +74,6 @@ services:
           memory: 1.5G
         reservations:
           memory: 512M
-
 
   # =====================================
   # FRONTEND (Next.js / React)
@@ -104,4 +102,3 @@ services:
         limits:
           cpus: "0.5"
           memory: 512M
-
