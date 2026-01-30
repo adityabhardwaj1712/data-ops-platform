@@ -8,7 +8,7 @@ import logging
 from typing import Optional
 from uuid import UUID
 
-from app.core.queue.job_queue import job_queue, QueueStatus
+from app.queue.job_queue import job_queue, QueueStatus
 from app.db.session import get_db
 from app.db.models import Job, JobStatus
 from sqlalchemy import select

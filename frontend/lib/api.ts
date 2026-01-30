@@ -1,7 +1,8 @@
 // Utility functions for API calls using native fetch
 // Replaces axios with lightweight fetch API
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
 interface FetchOptions extends RequestInit {
   timeout?: number
@@ -33,70 +34,24 @@ async function fetchWithTimeout(
 }
 
 /**
- * API client using native fetch (replaces axios)
+ * API client using native fetch
  */
 export const api = {
-  async get<T>(endpoint: string): Promise<T> {
+  async get<T = any>(endpoint: string): Promise<T> {
     const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`)
-    
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`)
-    }
-    
+    if (!response.ok) throw new Error(response.statusText)
     return response.json()
   },
 
-  async post<T>(endpoint: string, data?: any): Promise<T> {
+  async post<T = any>(endpoint: string, data?: any): Promise<T> {
     const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: data ? JSON.stringify(data) : undefined,
     })
-    
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`)
-    }
-    
+    if (!response.ok) throw new Error(response.statusText)
     return response.json()
   },
-
-  async put<T>(endpoint: string, data?: any): Promise<T> {
-    const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: data ? JSON.stringify(data) : undefined,
-    })
-    
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`)
-    }
-    
-    return response.json()
-  },
-
-  async delete<T>(endpoint: string): Promise<T> {
-    const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
-      method: 'DELETE',
-    })
-    
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.statusText}`)
-    }
-    
-    return response.json()
-  },
-}
-
-/**
- * WebSocket connection for real-time updates
- */
-export function createWebSocket(path: string): WebSocket {
-  const wsUrl = API_BASE_URL.replace('http', 'ws')
-  return new WebSocket(`${wsUrl}${path}`)
 }
 
 /**
@@ -105,26 +60,25 @@ export function createWebSocket(path: string): WebSocket {
 export async function pollJobStatus(
   jobId: string,
   onUpdate: (status: any) => void,
-  interval: number = 2000
+  interval = 2000
 ): Promise<any> {
   return new Promise((resolve, reject) => {
     const poll = async () => {
       try {
         const status = await api.get(`/api/scrape/${jobId}`)
         onUpdate(status)
-        
-        if (status.status === 'completed') {
+
+        if (status.status === "completed") {
           resolve(status)
-        } else if (status.status === 'failed') {
-          reject(new Error(status.error || 'Job failed'))
+        } else if (status.status === "failed") {
+          reject(new Error(status.error || "Job failed"))
         } else {
           setTimeout(poll, interval)
         }
-      } catch (error) {
-        reject(error)
+      } catch (err) {
+        reject(err)
       }
     }
-    
     poll()
   })
 }

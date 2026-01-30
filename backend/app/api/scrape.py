@@ -8,7 +8,7 @@ from app.db.session import get_db
 from app.db.models import Job, Task, TaskType, TaskStatus
 from app.db.models import JobStatus as DBJobStatus
 from app.schemas import ScrapeRequest
-from app.core.queue.job_queue import job_queue
+from app.queue.job_queue import job_queue
 from app.scraper.generic import GenericScraper
 from app.core.limits import limits
 

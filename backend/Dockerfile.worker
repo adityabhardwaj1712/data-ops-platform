@@ -1,28 +1,16 @@
-# ============================================
-# HEAVY WORKER DOCKER IMAGE (PRODUCTION)
-# Playwright + Chromium (official)
-# ============================================
-
 FROM mcr.microsoft.com/playwright/python:v1.42.0-jammy
 
 WORKDIR /app
 
-# Copy requirements
-COPY requirements.txt ./
+COPY requirements-worker.txt .
+RUN pip install --no-cache-dir -r requirements-worker.txt
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application code
 COPY app ./app
 
-# Create data directories and fix permissions
 RUN mkdir -p /app/data /app/exports && \
     chown -R pwuser:pwuser /app
 
-# Switch to existing Playwright user
 USER pwuser
 
-# Run worker
 CMD ["python", "-m", "app.worker.main"]
 

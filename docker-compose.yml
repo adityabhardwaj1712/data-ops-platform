@@ -1,83 +1,41 @@
-version: "3.9"
-
 services:
-  # =====================================
-  # BACKEND API (FastAPI)
-  # =====================================
+  frontend:
+    build:
+      context: ./frontend
+    container_name: dataops_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend
+          target: /app
+          ignore:
+            - node_modules/
+            - .next/
+
   api:
     build:
       context: ./backend
       dockerfile: Dockerfile.api
-
     container_name: dataops_api
-
     ports:
       - "8000:8000"
+    develop:
+      watch:
+        - action: sync
+          path: ./backend/app
+          target: /app/app
 
-    environment:
-      DATABASE_URL: sqlite+aiosqlite:////app/data/dataops.db
-      LOG_LEVEL: INFO
-      WORKER_ENABLED: "false"
-
-    volumes:
-      - ./backend/data:/app/data
-      - ./backend/exports:/app/exports
-
-    restart: unless-stopped
-
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health/liveness"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
-
-  # =====================================
-  # BACKGROUND WORKER
-  # =====================================
   worker:
     build:
       context: ./backend
       dockerfile: Dockerfile.worker
-
     container_name: dataops_worker
-
-    environment:
-      DATABASE_URL: sqlite+aiosqlite:////app/data/dataops.db
-      LOG_LEVEL: INFO
-      WORKER_ENABLED: "true"
-      WORKER_CONCURRENCY: 1
-      WORKER_POLL_INTERVAL: 5
-
-    volumes:
-      - ./backend/data:/app/data
-      - ./backend/exports:/app/exports
-
-    restart: unless-stopped
-
-    depends_on:
-      api:
-        condition: service_healthy
-
-  # =====================================
-  # FRONTEND (Next.js – Stable Build)
-  # =====================================
-  frontend:
-    build:
-      context: ./archive/frontend_config
-      dockerfile: Dockerfile
-
-    container_name: dataops_frontend
-
-    ports:
-      - "3000:80"
-
-    environment:
-      NEXT_PUBLIC_API_URL: http://api:8000
-
-    depends_on:
-      api:
-        condition: service_healthy
-
-    restart: unless-stopped
-
+    develop:
+      watch:
+        - action: sync
+          path: ./backend/app
+          target: /app/app

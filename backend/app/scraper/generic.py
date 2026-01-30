@@ -14,6 +14,8 @@ from app.scraper.strategies.static import StaticStrategy
 from app.scraper.extractors.auto import AutoExtractor
 from app.scraper.extractors.config import ConfigExtractor
 from app.scraper.llm_client import LLMClient
+from app.scraper.extractors.config import ConfigExtractor
+
 
 logger = logging.getLogger(__name__)
 
