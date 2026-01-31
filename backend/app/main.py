@@ -13,7 +13,6 @@ from app.core.middleware import (
     RequestLoggingMiddleware,
     ErrorHandlingMiddleware,
     RateLimitMiddleware,
-    SecurityHeadersMiddleware
 )
 from app.core.health import router as health_router
 from app.db.session import engine
@@ -97,10 +96,9 @@ app = FastAPI(
 # -------------------------------------------------
 # Middleware (ORDER MATTERS)
 # -------------------------------------------------
-app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(ErrorHandlingMiddleware)
-app.add_middleware(RateLimitMiddleware, requests_per_minute=120)
 app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(RateLimitMiddleware)
 
 # -------------------------------------------------
 # CORS

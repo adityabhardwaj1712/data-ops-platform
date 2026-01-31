@@ -6,7 +6,7 @@ Best for simple HTML pages without JavaScript rendering
 import httpx
 import trafilatura
 from typing import Tuple, Optional, Dict
-from app.scraper.strategies.base import BaseStrategy
+from app.scraper.engines.base import BaseStrategy
 from app.scraper.antibot.headers import get_random_headers
 
 
@@ -32,7 +32,7 @@ class StaticStrategy(BaseStrategy):
         use_proxy: bool = False,
         headers: Optional[Dict[str, str]] = None,
         **kwargs
-    ) -> Tuple[str, str]:
+    ) -> Tuple[str, str, Optional[str]]:
         """
         Fetch page content using HTTP request.
         
@@ -43,7 +43,7 @@ class StaticStrategy(BaseStrategy):
             headers: Custom headers to use
             
         Returns:
-            Tuple of (markdown_content, raw_html)
+            Tuple of (markdown_content, raw_html, screenshot_path)
         """
         # Use random realistic headers
         request_headers = headers or get_random_headers()

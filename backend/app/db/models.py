@@ -180,3 +180,28 @@ class JobConfig(Base):
     is_active = Column(Integer, default=1)  # 1 for active, 0 for inactive
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     created_by = Column(Integer, nullable=True)
+
+
+class DomainMemory(Base):
+    """Silent Learning Engine: Remembers best strategies per domain"""
+    __tablename__ = "domain_memory"
+
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
+    domain = Column(String(255), nullable=False, unique=True)
+    best_strategy = Column(String(50), nullable=False)
+    success_rate = Column(Float, default=0.0)
+    avg_latency = Column(Float, default=0.0)
+    job_count = Column(Integer, default=0)
+    last_updated = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class DataSnapshot(Base):
+    """Change Detection Engine: Stores data hashes for diffing"""
+    __tablename__ = "data_snapshots"
+
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
+    job_id = Column(GUID(), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False)
+    url = Column(String(2048), nullable=False)
+    data_hash = Column(String(64), nullable=False)  # SHA-256
+    data_json = Column(JSON, nullable=False)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())

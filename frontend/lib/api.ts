@@ -68,9 +68,9 @@ export async function pollJobStatus(
         const status = await api.get(`/api/scrape/${jobId}`)
         onUpdate(status)
 
-        if (status.status === "completed") {
+        if (status.status === "COMPLETED") {
           resolve(status)
-        } else if (status.status === "failed") {
+        } else if (status.status === "FAILED_FINAL") {
           reject(new Error(status.error || "Job failed"))
         } else {
           setTimeout(poll, interval)

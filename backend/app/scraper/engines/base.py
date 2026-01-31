@@ -9,12 +9,12 @@ class BaseStrategy(ABC):
     """Abstract base class for scraping strategies"""
     
     @abstractmethod
-    async def fetch(self, url: str, **kwargs) -> Tuple[str, str]:
+    async def fetch(self, url: str, **kwargs) -> Tuple[str, str, Optional[str]]:
         """
         Fetch content from a URL.
         
         Returns:
-            Tuple of (markdown_content, raw_html)
+            Tuple of (markdown_content, raw_html, screenshot_path)
         """
         pass
     

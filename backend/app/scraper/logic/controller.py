@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 from urllib.parse import urlparse
 import random
+from app.scraper.logic.generic import GenericScraper
 
 
 @dataclass

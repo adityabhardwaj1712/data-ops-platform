@@ -1,87 +1,56 @@
-# DataOps Scraper: Reliable, Human-Verified Data Extraction
+# 🌐 DataOps Platform: Pro-Grade Scraper
 
-A pro-level web scraping system designed for trust, reliability, and human oversight. This project implements a modular, config-driven architecture that ensures data integrity through strict validation and an integrated Human-In-The-Loop (HITL) flow.
+An intelligent, autonomous data extraction platform designed for resilience, stealth, and high-fidelity output. This system evolves from a simple multi-layered scraper into a self-healing data delivery engine.
+
+## 🚀 Phase 2 Features
+
+- **🤖 AI Schema Builder**: Generate complex scraping schemas from natural language prompts.
+- **🧠 Silent Learning**: Domain-specific memory that automatically optimizes engine selection (Static vs Browser vs Stealth).
+- **🛠️ Self-Healing Selectors**: Intelligent recovery when website layouts change.
+- **🔍 Preview Mode**: Dry-run extraction with real-time success metrics.
+- **📈 Change Detection**: Snapshot-based monitoring for data drift.
 
 ## 🏗️ Core Architecture
 
-The system is built on a modular "Fetch-Validate-Score" pipeline, replacing monolithic scraping engines with specialized components.
+The system is organized into a highly modular structure for maximum maintainability:
 
-### 📁 File Structure
+### 📦 Backend (FastAPI)
+- **`app/scraper/`**: The core extraction engine.
+    - `engines/`: Base fetchers (httpx, Playwright).
+    - `intelligence/`: Domain memory, analyzer, and preview logic.
+    - `logic/`: Orchestration and specialized scrapers (Generic, Product).
+    - `recovery/`: Self-healing heuristic engine.
+    - `utils/`: Common utilities (Artifacts, Validator, Pagination).
+- **`app/api/`**: RESTful interface for the platform.
+- **`app/worker/`**: Background job processing with Celery-like resilience.
 
-```text
-backend_fastapi/
-├── app/
-│   ├── scraper/                # Core Scraping Logic
-│   │   ├── analyzer.py         # Strategy detection (Static vs Browser vs Stealth)
-│   │   ├── base.py             # Base scraper strategies with retry logic
-│   │   ├── generic.py          # Central Orchestrator (The "Brain")
-│   │   ├── validator.py        # Strict post-scrape integrity checks
-│   │   ├── confidence.py       # 0-100 Scoring logic
-│   │   ├── artifacts.py        # Local storage for HTML/Screenshots
-│   │   └── extractors/         # Data extraction strategies
-│   │       ├── config.py       # Strict CSS selector-based extraction
-│   │       └── auto.py         # Heuristic & Regex based extraction
-│   ├── worker/                 # Background job processing
-│   │   └── executors/
-│   │       └── scrape_executor.py  # Orchestrates GenericScraper in workers
-│   └── api/                    # Lean REST API endpoints
-│       ├── scrape.py           # Job submission & status
-│       └── hitl.py             # Human-In-The-Loop management
-└── data/
-    ├── artifacts/              # HTML dumps and screenshots (Job IDs)
-    └── deliveries/             # Final validated data versions
-```
+### 🎨 Frontend (Next.js)
+- **Glassmorphic UI**: A premium, high-performance dashboard.
+- **Live Metrics**: Real-time feedback on engine performance and confidence.
+- **AI Tools**: Interactive schema builder and preview panels.
 
-## 🚀 Key Features
+## 🛠️ Getting Started
 
-### 1. Modular Fetching Pipeline
-The system automatically chooses the lightest fetch strategy possible:
-- **Static**: Fast HTTP requests for simple sites.
-- **Browser**: Full JS rendering using Playwright.
-- **Stealth**: Advanced anti-bot evasion for protected sites.
+### Local Setup
+1. **Infrastructure**: Start Docker dependencies (PostgreSQL/SQLite).
+2. **Backend**: 
+   ```bash
+   cd backend
+   pip install -r requirements.txt
+   uvicorn app.main:app --reload
+   ```
+3. **Frontend**: 
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
 
-### 2. Strict Data Validation
-Every scrape results in a validation report checking for:
-- Empty fields or missing required data.
-- Duplicate rows.
-- Schema compliance.
-
-### 3. Confidence Scoring & HITL
-If a scrape has a confidence score < 85 or fails validation, it is automatically routed to the **Human review queue**.
-- Inspect screenshots of what the scraper saw.
-- Edit CSS selectors in real-time.
-- Re-run the job with high priority.
-
-## 🛠️ Quick Start
-
-### Start the System
+### Verification
+Run the verification script to ensure the registry and specialized scrapers are correctly mapped:
 ```bash
-docker compose up -d api worker
+python verify_scrapers.py
 ```
 
-### Start a Scrape (Config-Driven)
-```bash
-curl -X POST http://localhost:8000/api/scrape \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://example.com/products",
-    "schema": {
-      "container": ".product-card",
-      "fields": {
-        "title": "h2.title",
-        "price": ".price-tag"
-      }
-    }
-  }'
-```
-
-### Review Jobs (Frontend)
-Visit `http://localhost:3000/review/[job_id]` to use the Human-In-The-Loop interface for failed or low-confidence scrapes.
-
-## 🔒 Security & Reliability
-- **Retry Mechanism**: Exponential backoff on fetch failures.
-- **Robots.txt**: Full compliance with target domain rules.
-- **Artifact Auditing**: Full transparency into what was scraped and why it was scored.
-
----
-© 2026 DataOps Reliable Scraper System
+## 📜 License
+Proprietary Engine v2.5.0 STABLE

@@ -35,6 +35,18 @@ class ScrapeArtifacts:
             f.write(screenshot_bytes)
         return str(file_path).replace("\\", "/") # Ensure forward slashes for URLs
 
+    def save_json(self, data: dict, job_id: str) -> str:
+        """Saves a dictionary as a JSON file in a job-specific subfolder."""
+        import json
+        job_dir = self.base_dir / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+        
+        filename = f"{datetime.datetime.now().strftime('%H%M%S')}.json"
+        file_path = job_dir / filename
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        return str(file_path).replace("\\", "/")
+
     def get_artifacts_for_job(self, job_id: str) -> list:
         """Lists artifacts associated with a job ID."""
         job_dir = self.base_dir / job_id

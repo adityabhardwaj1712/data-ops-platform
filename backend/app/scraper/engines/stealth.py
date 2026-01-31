@@ -8,7 +8,7 @@ import random
 import trafilatura
 from typing import Tuple, Optional
 from playwright.async_api import async_playwright
-from app.scraper.strategies.base import BaseStrategy
+from app.scraper.engines.base import BaseStrategy
 from app.scraper.antibot.fingerprint import get_stealth_config
 from app.scraper.antibot.delays import human_like_delay, random_mouse_move
 from app.scraper.antibot.headers import get_random_user_agent
@@ -86,16 +86,27 @@ class StealthStrategy(BaseStrategy):
                 permissions=["geolocation"] if stealth_config.get("geolocation") else []
             )
             
-            # Add stealth scripts to bypass detection
+            # Add stealth scripts to bypass detection (Pro-Grade Evasion)
             await context.add_init_script("""
                 // Override navigator.webdriver
                 Object.defineProperty(navigator, 'webdriver', {
                     get: () => undefined
                 });
                 
+                // Poison Canvas Fingerprinting
+                const originalGetImageData = CanvasRenderingContext2D.prototype.getImageData;
+                CanvasRenderingContext2D.prototype.getImageData = function(x, y, w, h) {
+                    const result = originalGetImageData.apply(this, arguments);
+                    result.data[0] = result.data[0] + (Math.random() > 0.5 ? 1 : -1);
+                    return result;
+                };
+
                 // Override navigator.plugins
                 Object.defineProperty(navigator, 'plugins', {
-                    get: () => [1, 2, 3, 4, 5]
+                    get: () => [
+                        { name: 'Chrome PDF Viewer', filename: 'internal-pdf-viewer' },
+                        { name: 'YouTube Plug-in', filename: 'internal-youtube-plugin' }
+                    ]
                 });
                 
                 // Override navigator.languages
@@ -105,41 +116,38 @@ class StealthStrategy(BaseStrategy):
                 
                 // Override chrome runtime
                 window.chrome = {
-                    runtime: {}
+                    runtime: {},
+                    loadTimes: function() {},
+                    csi: function() {},
+                    app: {}
                 };
                 
-                // Override permissions
-                const originalQuery = window.navigator.permissions.query;
-                window.navigator.permissions.query = (parameters) => (
-                    parameters.name === 'notifications' ?
-                        Promise.resolve({ state: Notification.permission }) :
-                        originalQuery(parameters)
-                );
+                // WebGL Fingerprint Poisoning
+                const getParameter = WebGLRenderingContext.prototype.getParameter;
+                WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                    if (parameter === 37445) return 'Intel Open Source Technology Center';
+                    if (parameter === 37446) return 'Mesa DRI Intel(R) HD Graphics 520 (Skylake GT2)';
+                    return getParameter.apply(this, arguments);
+                };
             """)
             
             page = await context.new_page()
             
             try:
                 # Random delay before navigation (human behavior)
-                await asyncio.sleep(random.uniform(0.5, 1.5))
+                await asyncio.sleep(random.uniform(1.0, 2.5))
                 
                 # Navigate to page
-                await page.goto(url, timeout=timeout * 1000, wait_until="domcontentloaded")
+                await page.goto(url, timeout=timeout * 1000, wait_until="networkidle")
                 
                 # Simulate human-like behavior
-                await human_like_delay()
+                await human_like_delay(1000, 3000)
                 await random_mouse_move(page)
                 
-                # Wait for network to settle
-                await page.wait_for_load_state("networkidle", timeout=10000)
-                
-                # Wait for specific selector if provided
-                if wait_for_selector:
-                    await page.wait_for_selector(wait_for_selector, timeout=10000)
-                
                 # Random scroll (human behavior)
-                await page.evaluate("window.scrollTo(0, document.body.scrollHeight / 3)")
-                await human_like_delay()
+                scroll_y = random.randint(300, 800)
+                await page.evaluate(f"window.scrollTo(0, {scroll_y})")
+                await human_like_delay(500, 1500)
                 
                 # Get page content
                 html = await page.content()

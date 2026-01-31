@@ -5,11 +5,12 @@ from sqlalchemy import select
 from uuid import UUID, uuid4
 
 from app.db.session import get_db
-from app.db.models import Job, Task, TaskType, TaskStatus
+from app.db.models import Job, Task, TaskType, TaskStatus, JobConfig
 from app.db.models import JobStatus as DBJobStatus
 from app.schemas import ScrapeRequest
 from app.queue.job_queue import job_queue
-from app.scraper.generic import GenericScraper
+from app.scraper.logic.registry import scraper_registry, initialize_scrapers
+from app.llm.schema_builder import AISchemaBuilder
 from app.core.limits import limits
 
 
@@ -46,7 +47,9 @@ async def scrape_url(
             "use_proxy": request.use_proxy,
             "wait_for_selector": request.wait_for_selector,
             "timeout": request.timeout,
-            "filters": request.filters
+            "filters": request.filters,
+            "debug": request.debug,
+            "auto_detect": request.auto_detect
         },
         status=DBJobStatus.CREATED
     )
@@ -68,7 +71,9 @@ async def scrape_url(
             "use_proxy": request.use_proxy,
             "wait_for_selector": request.wait_for_selector,
             "timeout": request.timeout,
-            "filters": request.filters
+            "filters": request.filters,
+            "debug": request.debug,
+            "auto_detect": request.auto_detect
         },
         priority=5
     )
@@ -212,6 +217,53 @@ async def rerun_job(
     return {"status": "rerun_queued", "job_id": str(job_id)}
 
 
+@router.post("/{job_id}/replay")
+async def replay_job(
+    job_id: UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Developer Superpower: Replay a past job exactly as it was.
+    Inherits all original configuration, proxies, and headers.
+    """
+    result = await db.execute(select(Job).where(Job.id == job_id))
+    job = result.scalar_one_or_none()
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+        
+    # Create a new job based on the old one
+    new_job = Job(
+        description=f"REPLAY: {job.description}",
+        schema=job.schema,
+        config=job.config.copy() if job.config else {},
+        status=DBJobStatus.CREATED
+    )
+    # Remove previous results/errors from new job config
+    if "result" in new_job.config:
+        del new_job.config["result"]
+    if "error" in new_job.config:
+        del new_job.config["error"]
+        
+    db.add(new_job)
+    await db.commit()
+    await db.refresh(new_job)
+    
+    # Enqueue with high priority
+    await job_queue.enqueue(
+        job_id=new_job.id,
+        job_type="SCRAPE",
+        payload=new_job.config,
+        priority=1 # Developer intervention priority
+    )
+    
+    return {
+        "job_id": str(new_job.id),
+        "status": "replay_queued",
+        "parent_job_id": str(job_id)
+    }
+
+
 @router.post("/preflight")
 async def preflight_test(
     request: ScrapeRequest
@@ -220,12 +272,13 @@ async def preflight_test(
     Test selectors on a single page before a full run.
     Returns preview data and confidence breakdown.
     """
-    scraper = GenericScraper()
+    scraper = await scraper_registry.get_scraper(request.url)
     
     # Force max_pages to 1 for preflight
-    preflight_result = await scraper.run(
+    preflight_result = await scraper.scrape(
         url=request.url,
         schema=request.schema,
+        job_id="preflight_" + str(uuid4()),
         strategy=request.strategy.value,
         stealth_mode=request.stealth_mode,
         timeout=request.timeout,
@@ -241,4 +294,50 @@ async def preflight_test(
         "failure_reason": preflight_result.failure_reason,
         "failure_message": preflight_result.failure_message,
         "errors": preflight_result.errors
+    }
+
+
+@router.post("/preview")
+async def preview_scrape(
+    request: ScrapeRequest
+):
+    """
+    Dry-run extraction to see what data would be picked up.
+    Returns preview data and success/missing field report.
+    """
+    scraper = await scraper_registry.get_scraper(request.url)
+    
+    # Run a quick fetch (static first)
+    preflight_result = await scraper.scrape(
+        url=request.url,
+        schema=request.schema,
+        job_id="preview_" + str(uuid4()),
+        strategy="static", # Preview is always fast
+        timeout=10,
+        temp=True # Flag to not save stats/snapshots
+    )
+    
+    # Use the preview engine for a detailed report
+    from app.scraper.intelligence.preview import PreviewEngine
+    preview_engine = PreviewEngine()
+    
+    # Note: GenericScraper already has result.data, but PreviewEngine gives status/missing
+    # We could also use scraper.preview_engine if exposed
+    
+    return preview_engine.preview(preflight_result.metadata.get("html", ""), request.schema)
+
+
+@router.post("/ai-schema")
+async def build_ai_schema(
+    prompt: str
+):
+    """
+    AI Superpower: Convert NL into high-quality scraping JSON.
+    """
+    builder = AISchemaBuilder()
+    schema = await builder.build(prompt)
+    
+    return {
+        "prompt": prompt,
+        "generated_schema": schema
     }

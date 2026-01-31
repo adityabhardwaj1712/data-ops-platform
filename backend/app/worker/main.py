@@ -204,7 +204,7 @@ class WorkerService:
                             job.config = {}
                         job.config["result"] = result
                         # Also sync failure info if applicable
-                        if status == JobStatus.FAILED:
+                        if status == JobStatus.FAILED_FINAL:
                             job.config["error"] = result.get("failure_message") or result.get("errors", ["Unknown error"])[0]
                     
                     await db.commit()

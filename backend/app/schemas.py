@@ -9,8 +9,9 @@ class JobStatus(str, Enum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     SUCCESS = "SUCCESS"
-    FAILED = "FAILED"
+    FAILED_FINAL = "FAILED_FINAL"
     NEEDS_HITL = "NEEDS_HITL"
+    RERUNNING = "RERUNNING"
 
 
 class ScrapeFailureReason(str, Enum):
@@ -123,11 +124,15 @@ class ScrapeRequest(BaseModel):
     wait_for_selector: Optional[str] = None
     timeout: int = Field(default=30, ge=5, le=120)
     filters: Optional[Dict[str, Any]] = None
+    debug: bool = False
+    auto_detect: bool = False
 
 
 class ScrapeResult(BaseModel):
     success: bool
+    status: Literal["success", "partial", "failed"] = "success"
     data: Optional[Dict[str, Any]] = None
+    missing_fields: List[str] = []
     pages_scraped: int = 1
     strategy_used: str
     confidence: float = 0.0  # Numeric score: 0-100
@@ -139,6 +144,7 @@ class ScrapeResult(BaseModel):
     failure_message: Optional[str] = None
     errors: List[str] = []
     metadata: Dict[str, Any] = {}
+    debug_data: Optional[Dict[str, Any]] = None
 
 
 # ============ HITL SCHEMAS ============

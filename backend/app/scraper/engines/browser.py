@@ -1,22 +1,18 @@
-"""
-Browser Strategy
-Playwright-based rendering (SAFE for Docker / WSL)
-"""
 import asyncio
 import os
+import random
 from datetime import datetime
-from typing import Tuple, Optional
+from app.scraper.engines.base import BaseStrategy
+from typing import Tuple, Optional, Any
 
 import trafilatura
 from playwright.async_api import async_playwright
 
-from app.scraper.strategies.base import BaseStrategy
 
-
-class BrowserStrategy(BaseStrategy):
+class BrowserStrategy:
     """
     Full browser rendering using Playwright.
-    Enabled only when explicitly needed.
+    Optimized for speed and stealth.
     """
 
     def get_name(self) -> str:
@@ -28,6 +24,7 @@ class BrowserStrategy(BaseStrategy):
         timeout: int = 30,
         wait_for_selector: Optional[str] = None,
         take_screenshot: bool = False,
+        wait_until: str = "domcontentloaded",
         **kwargs
     ) -> Tuple[str, str, Optional[str]]:
 
@@ -40,18 +37,17 @@ class BrowserStrategy(BaseStrategy):
                     "--no-sandbox",
                     "--disable-dev-shm-usage",
                     "--disable-gpu",
-                    "--disable-extensions",
-                    "--disable-background-networking",
-                    "--disable-sync",
-                    "--no-first-run",
-                    "--single-process",
                 ],
             )
 
+            # Human-like random viewport
+            width = random.randint(1280, 1920)
+            height = random.randint(720, 1080)
+
             context = await browser.new_context(
-                viewport={"width": 1366, "height": 768},
+                viewport={"width": width, "height": height},
                 user_agent=(
-                    "Mozilla/5.0 (X11; Linux x86_64) "
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                     "AppleWebKit/537.36 (KHTML, like Gecko) "
                     "Chrome/120.0.0.0 Safari/537.36"
                 ),
@@ -59,26 +55,42 @@ class BrowserStrategy(BaseStrategy):
 
             page = await context.new_page()
 
+            # Resource Blocking for speed
+            async def block_resources(route):
+                if route.request.resource_type in ["image", "media", "font", "stylesheet"]:
+                    await route.abort()
+                else:
+                    await route.continue_()
+
+            await page.route("**/*", block_resources)
+
             try:
+                # Add initial delay to look human
+                await asyncio.sleep(random.uniform(0.5, 1.5))
+
                 await page.goto(
                     url,
                     timeout=timeout * 1000,
-                    wait_until="domcontentloaded",
+                    wait_until=wait_until,
                 )
 
                 if wait_for_selector:
-                    await page.wait_for_selector(wait_for_selector, timeout=10_000)
+                    try:
+                        await page.wait_for_selector(wait_for_selector, timeout=10_000)
+                    except:
+                        pass # Continue anyway
 
-                await asyncio.sleep(0.5)
+                # Random interaction to mimic human
+                await page.mouse.move(random.randint(0, width), random.randint(0, height))
 
                 html = await page.content()
 
                 if take_screenshot:
-                    screenshots_dir = os.path.join(os.getcwd(), "data", "screenshots")
+                    screenshots_dir = os.path.join(os.getcwd(), "data", "artifacts", "snapshots")
                     os.makedirs(screenshots_dir, exist_ok=True)
                     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
                     screenshot_path = os.path.join(
-                        screenshots_dir, f"scrape_{timestamp}.png"
+                        screenshots_dir, f"snap_{timestamp}.png"
                     )
                     await page.screenshot(path=screenshot_path, full_page=False)
 
