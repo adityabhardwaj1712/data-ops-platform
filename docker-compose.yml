@@ -6,7 +6,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
     develop:
       watch:
         - action: sync
@@ -21,6 +21,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile.api
     container_name: dataops_api
+    env_file: .env
     ports:
       - "8000:8000"
     develop:
@@ -34,6 +35,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile.worker
     container_name: dataops_worker
+    env_file: .env
     develop:
       watch:
         - action: sync

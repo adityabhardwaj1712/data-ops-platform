@@ -2,7 +2,7 @@
 // Replaces axios with lightweight fetch API
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+  (typeof process !== 'undefined' && process.env ? process.env.NEXT_PUBLIC_API_BASE : '') || "http://localhost:8000"
 
 interface FetchOptions extends RequestInit {
   timeout?: number

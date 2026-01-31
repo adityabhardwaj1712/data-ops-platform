@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AlertCircle, CheckCircle2, RotateCw, Eye, Code, Image as ImageIcon } from 'lucide-react'
+import { JsonRenderer } from "@/components/json-renderer"
 
 export default function ReviewPage() {
     const { id } = useParams()
@@ -22,6 +23,7 @@ export default function ReviewPage() {
     const [preflightLoading, setPreflightLoading] = useState(false)
     const [preflightResult, setPreflightResult] = useState<any>(null)
     const [confirmed, setConfirmed] = useState(false)
+    const API_BASE_URL = (typeof process !== 'undefined' && process.env ? process.env.NEXT_PUBLIC_API_BASE : '') || "http://localhost:8000"
 
     useEffect(() => {
         fetchJob()
@@ -29,7 +31,7 @@ export default function ReviewPage() {
 
     const fetchJob = async () => {
         try {
-            const res = await fetch(`http://localhost:8000/api/scrape/${id}`)
+            const res = await fetch(`${API_BASE_URL}/api/scrape/${id}`)
             const data = await res.json()
             setJob(data)
             if (data.result?.schema?.fields) {
@@ -46,7 +48,7 @@ export default function ReviewPage() {
         setPreflightLoading(true)
         setPreflightResult(null)
         try {
-            const res = await fetch(`http://localhost:8000/api/scrape/preflight`, {
+            const res = await fetch(`${API_BASE_URL}/api/scrape/preflight`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -71,7 +73,7 @@ export default function ReviewPage() {
         if (!confirmed) return
         setRerunning(true)
         try {
-            await fetch(`http://localhost:8000/api/scrape/${id}/rerun`, {
+            await fetch(`${API_BASE_URL}/api/scrape/${id}/rerun`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -162,24 +164,14 @@ export default function ReviewPage() {
                             </div>
                             <CardContent className="p-0">
                                 <TabsContent value="data" className="m-0">
-                                    <div className="p-4 bg-white">
-                                        <pre className="p-4 bg-slate-900 text-slate-100 rounded-md overflow-auto max-h-[500px] text-[11px] leading-relaxed font-mono">
-                                            {JSON.stringify(result.data, null, 2)}
-                                        </pre>
+                                    <div className="p-4 bg-white/5">
+                                        <JsonRenderer data={result.data || {}} title="Extracted Data" />
                                     </div>
                                 </TabsContent>
                                 <TabsContent value="preview" className="m-0">
                                     {preflightResult ? (
-                                        <div className="p-4 space-y-4 bg-white">
-                                            <div className="flex justify-between items-center text-sm border-b pb-2">
-                                                <span className="font-semibold text-slate-700 uppercase tracking-tight">Test Result (1 Page)</span>
-                                                <Badge variant={preflightResult.success ? "success" : "destructive"}>
-                                                    {preflightResult.success ? "Valid" : preflightResult.failure_reason}
-                                                </Badge>
-                                            </div>
-                                            <pre className="bg-slate-50 border p-3 rounded text-[11px] overflow-auto max-h-[400px] font-mono">
-                                                {JSON.stringify(preflightResult.preview_data, null, 2)}
-                                            </pre>
+                                        <div className="p-4 space-y-4 bg-white/5">
+                                            <JsonRenderer data={preflightResult.preview_data || {}} title="Preflight Test Result" />
                                         </div>
                                     ) : (
                                         <div className="p-16 text-center text-muted-foreground">
@@ -191,7 +183,7 @@ export default function ReviewPage() {
                                 <TabsContent value="visual" className="m-0 p-4 min-h-[400px] flex items-center justify-center bg-slate-50">
                                     {(result.screenshots && result.screenshots.length > 0) ? (
                                         <div className="relative group">
-                                            <img src={`http://localhost:8000/${result.screenshots[0]}`} alt="Scrape Artifact" className="max-w-full h-auto rounded shadow-2xl border" />
+                                            <img src={`${API_BASE_URL}/${result.screenshots[0]}`} alt="Scrape Artifact" className="max-w-full h-auto rounded shadow-2xl border" />
                                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors pointer-events-none" />
                                         </div>
                                     ) : (

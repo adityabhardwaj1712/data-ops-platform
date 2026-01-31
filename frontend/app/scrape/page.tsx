@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sparkles, Settings2, Play, AlertCircle, CheckCircle2, Download, History, Database, Shield, Zap, Info, RotateCcw, Bug } from "lucide-react"
+import { JsonRenderer } from "@/components/json-renderer"
 
 interface ScrapeJob {
   job_id: string
@@ -73,7 +74,7 @@ export default function ScrapePage() {
 
       const finalStatus = await pollJobStatus(response.job_id, (status) => {
         setJob(prev => ({ ...prev, ...status }))
-        if (status.status === "running") setProgress(60)
+        if (status.status === "RUNNING") setProgress(60)
       })
 
       setProgress(100)
@@ -144,20 +145,32 @@ export default function ScrapePage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-20">
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <h1 className="text-4xl font-bold font-outfit">Enterprise <span className="text-gradient">Scraper</span></h1>
-          <p className="text-muted-foreground">Pro-grade extraction with smart engine selection</p>
+    <div className="max-w-6xl mx-auto space-y-10 pb-20 pt-6">
+      <div className="flex items-center justify-between animate-in">
+        <div className="space-y-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-[10px] font-bold tracking-widest uppercase mb-2">
+            <Zap className="h-3 w-3 fill-current" />
+            Extreme Extraction
+          </div>
+          <h1 className="text-5xl font-bold font-outfit tracking-tight">
+            Enterprise <span className="text-gradient">Scraper</span>
+          </h1>
+          <p className="text-muted-foreground text-lg">Pro-grade extraction with smart engine selection</p>
         </div>
-        <Badge variant="outline" className="px-4 py-1 border-primary/20 bg-primary/5 text-primary">
-          v2.5.0 STABLE
-        </Badge>
+        <div className="text-right space-y-2">
+          <Badge variant="outline" className="px-4 py-1 border-primary/20 bg-primary/5 text-primary font-mono backdrop-blur-sm">
+            v2.5.0 STABLE
+          </Badge>
+          <div className="flex items-center justify-end gap-2 text-[10px] font-bold uppercase text-muted-foreground tracking-tighter">
+            <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+            System Ready
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="glass-card shadow-2xl space-y-6">
+        <div className="lg:col-span-2 space-y-8">
+          <div className="glass-card shadow-2xl space-y-8 p-8 border-primary/10">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-muted-foreground ml-1">Target URL</label>
@@ -275,18 +288,19 @@ export default function ScrapePage() {
 
             <Button
               onClick={handleScrape}
-              className="w-full h-12 text-md font-bold bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all active:scale-[0.98]"
+              className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all active:scale-[0.98] border border-white/10 group overflow-hidden relative"
               disabled={loading || !url}
             >
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
               {loading ? (
                 <span className="flex items-center gap-2">
-                  <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Engine Running...
+                  <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Engine Initializing...
                 </span>
               ) : (
-                <span className="flex items-center gap-2">
-                  <Play className="h-4 w-4 fill-current" />
-                  Launch Engine
+                <span className="flex items-center gap-3">
+                  <Play className="h-5 w-5 fill-current" />
+                  Launch Scrape Engine
                 </span>
               )}
             </Button>
@@ -308,19 +322,7 @@ export default function ScrapePage() {
           {job && job.status === "COMPLETED" && (
             <div className="space-y-6 animate-in zoom-in-95">
               <div className="glass-card border-green-500/20">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-bold font-outfit flex items-center gap-2 text-green-400">
-                    <CheckCircle2 className="h-5 w-5" />
-                    Results
-                  </h3>
-                  <Button variant="ghost" size="sm" onClick={downloadResults} className="text-primary hover:bg-primary/10">
-                    <Download className="h-4 w-4 mr-2" />
-                    Download
-                  </Button>
-                </div>
-                <div className="p-4 rounded-xl bg-black/40 border border-white/5 overflow-auto max-h-[400px] text-xs font-mono text-green-400/90 shadow-inner">
-                  {JSON.stringify(job.result || {}, null, 2)}
-                </div>
+                <JsonRenderer data={job.result || {}} title="Results" />
               </div>
 
               {job.debug_data && (
