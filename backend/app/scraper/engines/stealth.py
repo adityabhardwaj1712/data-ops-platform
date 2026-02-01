@@ -2,7 +2,7 @@ import asyncio
 import random
 import os
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import trafilatura
 from playwright.async_api import async_playwright
@@ -16,8 +16,12 @@ from app.schemas import ScrapeResult, ScrapeFailureReason
 
 class StealthStrategy(BaseScraper):
     """
-    Anti-bot stealth browser scraper.
+    Stealth browser strategy with anti-bot evasion.
+    Used as LAST fallback.
     """
+
+    def get_name(self) -> str:
+        return "stealth"
 
     def can_handle(self, url: str) -> bool:
         return True
@@ -27,68 +31,123 @@ class StealthStrategy(BaseScraper):
         url: str,
         schema: Dict[str, Any],
         job_id: str,
-        timeout: int = 40,
+        timeout: int = 30,
+        wait_for_selector: Optional[str] = None,
         **kwargs,
     ) -> ScrapeResult:
 
-        try:
-            stealth = get_stealth_config()
+        await self.throttle(url)
 
+        stealth_config = get_stealth_config()
+        screenshot_path = None
+
+        try:
             async with async_playwright() as p:
                 browser = await p.chromium.launch(
-                    head **less=True,
-                    args=["--disable-blink-features=AutomationControlled"],
+                    headless=True,
+                    args=[
+                        "--disable-blink-features=AutomationControlled",
+                        "--disable-dev-shm-usage",
+                        "--no-sandbox",
+                        "--disable-setuid-sandbox",
+                    ],
                 )
 
                 context = await browser.new_context(
-                    viewport=stealth["viewport"],
+                    viewport=stealth_config["viewport"],
                     user_agent=get_random_user_agent(),
-                    locale=stealth["locale"],
-                    timezone_id=stealth["timezone"],
+                    locale=stealth_config["locale"],
+                    timezone_id=stealth_config["timezone"],
                 )
 
+                # Stealth JS injections
+                await context.add_init_script("""
+                    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+                    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+                    Object.defineProperty(navigator, 'plugins', {
+                        get: () => [{ name: 'Chrome PDF Viewer' }]
+                    });
+                    window.chrome = { runtime: {} };
+                """)
+
                 page = await context.new_page()
-                await asyncio.sleep(random.uniform(1.0, 2.0))
-                await page.goto(url, timeout=timeout * 1000, wait_until="networkidle")
+
+                # Human-like delay
+                await asyncio.sleep(random.uniform(1.0, 2.5))
+
+                await page.goto(
+                    url,
+                    timeout=timeout * 1000,
+                    wait_until="networkidle",
+                )
 
                 await human_like_delay(800, 2000)
                 await random_mouse_move(page)
 
+                if wait_for_selector:
+                    try:
+                        await page.wait_for_selector(wait_for_selector, timeout=10_000)
+                    except Exception:
+                        pass
+
                 html = await page.content()
-                markdown = trafilatura.extract(html) or ""
+
+                # Screenshot
+                screenshots_dir = os.path.join(
+                    os.getcwd(), "data", "artifacts", "screenshots"
+                )
+                os.makedirs(screenshots_dir, exist_ok=True)
+                timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                screenshot_path = os.path.join(
+                    screenshots_dir, f"stealth_{timestamp}.png"
+                )
+                await page.screenshot(path=screenshot_path, full_page=True)
+
+                markdown = trafilatura.extract(
+                    html,
+                    output_format="markdown",
+                    include_links=True,
+                    include_tables=True,
+                ) or ""
+
+                await context.close()
+                await browser.close()
 
                 if not markdown.strip():
                     return ScrapeResult(
                         success=False,
                         status="failed",
                         strategy_used="stealth",
-                        failure_reason=ScrapeFailureReason.ANTI_BOT_SUSPECTED,
-                        failure_message="Page rendered but content blocked",
+                        failure_reason=ScrapeFailureReason.EMPTY_DATA,
+                        failure_message="No extractable content found",
                     )
-
-                screenshot_dir = "/app/data/artifacts/screenshots"
-                os.makedirs(screenshot_dir, exist_ok=True)
-                screenshot_path = f"{screenshot_dir}/{job_id}_stealth.png"
-                await page.screenshot(path=screenshot_path, full_page=True)
-
-                await browser.close()
 
                 return ScrapeResult(
                     success=True,
                     status="success",
                     strategy_used="stealth",
-                    data={"_raw_markdown": markdown},
-                    screenshots=[screenshot_path],
-                    confidence=90.0,
-                    metadata={"engine": "stealth"},
+                    data={
+                        "_raw_markdown": markdown,
+                        "_strategy": "stealth",
+                    },
+                    confidence=0.85,
+                    screenshots=[screenshot_path] if screenshot_path else [],
                 )
+
+        except asyncio.TimeoutError:
+            return ScrapeResult(
+                success=False,
+                status="failed",
+                strategy_used="stealth",
+                failure_reason=ScrapeFailureReason.JS_TIMEOUT,
+                failure_message="Page load timed out",
+            )
 
         except Exception as e:
             return ScrapeResult(
                 success=False,
                 status="failed",
                 strategy_used="stealth",
-                failure_reason=ScrapeFailureReason.ANTI_BOT_SUSPECTED,
+                failure_reason=ScrapeFailureReason.UNKNOWN,
                 failure_message=str(e),
-                errors=[str(e)],
             )
