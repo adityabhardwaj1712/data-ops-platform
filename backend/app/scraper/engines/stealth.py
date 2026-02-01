@@ -2,7 +2,7 @@ import asyncio
 import random
 import os
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 import trafilatura
 from playwright.async_api import async_playwright
@@ -11,12 +11,12 @@ from app.scraper.logic.base import BaseScraper
 from app.scraper.antibot.fingerprint import get_stealth_config
 from app.scraper.antibot.delays import human_like_delay, random_mouse_move
 from app.scraper.antibot.headers import get_random_user_agent
-from app.schemas import ScrapeResult
+from app.schemas import ScrapeResult, ScrapeFailureReason
 
 
 class StealthStrategy(BaseScraper):
     """
-    Stealth scraper for bot-protected sites.
+    Anti-bot stealth browser scraper.
     """
 
     def can_handle(self, url: str) -> bool:
@@ -27,8 +27,7 @@ class StealthStrategy(BaseScraper):
         url: str,
         schema: Dict[str, Any],
         job_id: str,
-        timeout: int = 30,
-        wait_for_selector: Optional[str] = None,
+        timeout: int = 40,
         **kwargs,
     ) -> ScrapeResult:
 
@@ -37,11 +36,8 @@ class StealthStrategy(BaseScraper):
 
             async with async_playwright() as p:
                 browser = await p.chromium.launch(
-                    headless=True,
-                    args=[
-                        "--disable-blink-features=AutomationControlled",
-                        "--no-sandbox",
-                    ],
+                    head **less=True,
+                    args=["--disable-blink-features=AutomationControlled"],
                 )
 
                 context = await browser.new_context(
@@ -51,49 +47,48 @@ class StealthStrategy(BaseScraper):
                     timezone_id=stealth["timezone"],
                 )
 
-                await context.add_init_script("""
-                    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-                    window.chrome = { runtime: {} };
-                """)
-
                 page = await context.new_page()
-
-                await asyncio.sleep(random.uniform(1.0, 2.5))
+                await asyncio.sleep(random.uniform(1.0, 2.0))
                 await page.goto(url, timeout=timeout * 1000, wait_until="networkidle")
 
-                await human_like_delay(1000, 3000)
+                await human_like_delay(800, 2000)
                 await random_mouse_move(page)
 
-                if wait_for_selector:
-                    try:
-                        await page.wait_for_selector(wait_for_selector, timeout=10_000)
-                    except Exception:
-                        pass
-
                 html = await page.content()
+                markdown = trafilatura.extract(html) or ""
 
-                markdown = trafilatura.extract(
-                    html,
-                    output_format="markdown",
-                    include_links=True,
-                    include_tables=True,
-                ) or ""
+                if not markdown.strip():
+                    return ScrapeResult(
+                        success=False,
+                        status="failed",
+                        strategy_used="stealth",
+                        failure_reason=ScrapeFailureReason.ANTI_BOT_SUSPECTED,
+                        failure_message="Page rendered but content blocked",
+                    )
 
-                await context.close()
+                screenshot_dir = "/app/data/artifacts/screenshots"
+                os.makedirs(screenshot_dir, exist_ok=True)
+                screenshot_path = f"{screenshot_dir}/{job_id}_stealth.png"
+                await page.screenshot(path=screenshot_path, full_page=True)
+
                 await browser.close()
 
                 return ScrapeResult(
                     success=True,
-                    data={
-                        "_raw_markdown": markdown,
-                        "_strategy": "stealth",
-                        "_confidence": 0.9,
-                    },
+                    status="success",
+                    strategy_used="stealth",
+                    data={"_raw_markdown": markdown},
+                    screenshots=[screenshot_path],
+                    confidence=90.0,
+                    metadata={"engine": "stealth"},
                 )
 
         except Exception as e:
             return ScrapeResult(
                 success=False,
-                failure_reason="stealth_failed",
+                status="failed",
+                strategy_used="stealth",
+                failure_reason=ScrapeFailureReason.ANTI_BOT_SUSPECTED,
                 failure_message=str(e),
+                errors=[str(e)],
             )

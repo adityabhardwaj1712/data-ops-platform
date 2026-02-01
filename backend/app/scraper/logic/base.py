@@ -5,7 +5,8 @@ import logging
 import random
 import time
 from urllib.parse import urlparse
-from app.schemas import ScrapeResult
+
+from app.schemas import ScrapeResult, ScrapeFailureReason
 
 logger = logging.getLogger(__name__)
 
@@ -13,10 +14,20 @@ logger = logging.getLogger(__name__)
 class BaseScraper(ABC):
     """
     Base class for ALL scrapers & strategies.
-    Registry depends on this class.
+    Registry, routing, and SLA logic depend on this class.
     """
 
     _last_request_time: Dict[str, float] = {}
+
+    # -----------------------
+    # IDENTITY (SYNC)
+    # -----------------------
+    def get_name(self) -> str:
+        """
+        Stable identifier for this strategy.
+        MUST be overridden in child classes.
+        """
+        return self.__class__.__name__.replace("Strategy", "").lower()
 
     # -----------------------
     # ROUTING (SYNC)
@@ -24,7 +35,7 @@ class BaseScraper(ABC):
     def can_handle(self, url: str) -> bool:
         """
         Decide if this scraper can handle the URL.
-        Must be FAST and SYNC.
+        MUST be fast, synchronous, and side-effect free.
         """
         return True  # default fallback behavior
 
@@ -39,12 +50,19 @@ class BaseScraper(ABC):
         job_id: str,
         **kwargs,
     ) -> ScrapeResult:
-        pass
+        """
+        Perform scraping and return a fully-formed ScrapeResult.
+        MUST NEVER raise uncaught exceptions.
+        """
+        raise NotImplementedError
 
     # -----------------------
-    # HELPERS
+    # SAFETY HELPERS
     # -----------------------
     async def throttle(self, url: str, min_delay: float = 1.5):
+        """
+        Per-domain rate limiting to avoid bans.
+        """
         domain = urlparse(url).netloc
         now = time.time()
 
@@ -57,3 +75,26 @@ class BaseScraper(ABC):
             await asyncio.sleep(wait)
 
         self._last_request_time[domain] = time.time()
+
+    # -----------------------
+    # STANDARD FAILURE FACTORY
+    # -----------------------
+    def failure(
+        self,
+        *,
+        reason: ScrapeFailureReason,
+        message: str,
+        errors: list[str] | None = None,
+    ) -> ScrapeResult:
+        """
+        Canonical way to return failures.
+        Prevents schema drift & enum bugs.
+        """
+        return ScrapeResult(
+            success=False,
+            status="failed",
+            strategy_used=self.get_name(),
+            failure_reason=reason,
+            failure_message=message,
+            errors=errors or [],
+        )

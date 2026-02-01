@@ -5,15 +5,14 @@ from typing import Dict, Any, Optional
 
 from app.scraper.logic.base import BaseScraper
 from app.scraper.antibot.headers import get_random_headers
-from app.schemas import ScrapeResult
+from app.schemas import ScrapeResult, ScrapeFailureReason
 
 logger = logging.getLogger(__name__)
 
 
 class StaticStrategy(BaseScraper):
     """
-    Static HTTP scraper.
-    LAST priority.
+    Static HTTP scraper (lowest priority).
     """
 
     def can_handle(self, url: str) -> bool:
@@ -29,15 +28,15 @@ class StaticStrategy(BaseScraper):
         headers: Optional[Dict[str, str]] = None,
         **kwargs,
     ) -> ScrapeResult:
-        try:
-            request_headers = headers or get_random_headers()
 
+        try:
             async with httpx.AsyncClient(
                 timeout=timeout,
                 follow_redirects=True,
                 http2=True,
+                headers=headers or get_random_headers(),
             ) as client:
-                response = await client.get(url, headers=request_headers)
+                response = await client.get(url)
                 response.raise_for_status()
 
             html = response.text
@@ -49,19 +48,31 @@ class StaticStrategy(BaseScraper):
                 include_tables=True,
             ) or ""
 
+            if not markdown.strip():
+                return ScrapeResult(
+                    success=False,
+                    status="failed",
+                    strategy_used="static",
+                    failure_reason=ScrapeFailureReason.EMPTY_DATA,
+                    failure_message="No content extracted",
+                )
+
             return ScrapeResult(
                 success=True,
-                data={
-                    "_raw_markdown": markdown,
-                    "_strategy": "static",
-                    "_confidence": 0.6,
-                },
+                status="success",
+                strategy_used="static",
+                data={"_raw_markdown": markdown},
+                confidence=60.0,
+                metadata={"engine": "static"},
             )
 
         except Exception as e:
-            logger.exception("StaticStrategy failed")
+            logger.exception("Static scrape failed")
             return ScrapeResult(
                 success=False,
-                failure_reason="static_failed",
+                status="failed",
+                strategy_used="static",
+                failure_reason=ScrapeFailureReason.FETCH_FAILED,
                 failure_message=str(e),
+                errors=[str(e)],
             )
