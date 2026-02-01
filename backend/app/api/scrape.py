@@ -183,27 +183,28 @@ async def preflight_test(request: ScrapeRequest):
 
 
 # -------------------------------------------------------------------
-# PREVIEW (FIXED – DIRECT STATIC FETCH)
+# PREVIEW (STATIC ONLY – SAFE)
 # -------------------------------------------------------------------
 @router.post("/preview")
 async def preview_scrape(request: ScrapeRequest):
     """
-    Fast schema preview.
+    Fast, safe preview.
     - No DB
     - No worker
-    - No escalation ladder
-    - Direct static HTML fetch
+    - No escalation
+    - Static HTML only
     """
 
     from app.scraper.engines.static import StaticStrategy
     from app.scraper.intelligence.preview import PreviewEngine
 
-    static = StaticStrategy()
+    strategy = StaticStrategy()
     engine = PreviewEngine()
 
     try:
-        _, html, _ = await static.fetch(
-            request.url,
+        # ✅ STATIC ENGINE FETCH (THIS HAS fetch)
+        markdown, html, _ = await strategy.fetch(
+            url=request.url,
             timeout=min(request.timeout or 10, 15),
         )
     except Exception as e:
@@ -212,7 +213,20 @@ async def preview_scrape(request: ScrapeRequest):
             detail=f"Preview fetch failed: {str(e)}",
         )
 
-    return engine.preview(html, request.schema)
+    if not html:
+        return {
+            "found": {},
+            "missing": list(request.schema.keys()),
+            "success_rate": 0.0,
+            "status": "blocked_or_empty",
+            "html_length": 0,
+        }
+
+    # ✅ PURE HTML → PREVIEW
+    preview = engine.preview(html, request.schema)
+    preview["html_length"] = len(html)
+
+    return preview
 
 
 # -------------------------------------------------------------------
