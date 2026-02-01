@@ -2,21 +2,26 @@ import asyncio
 import os
 import random
 from datetime import datetime
-from app.scraper.engines.base import BaseStrategy
-from typing import Tuple, Optional, Any
+from typing import Tuple, Optional
 
 import trafilatura
 from playwright.async_api import async_playwright
 
+from app.scraper.logic.base import BaseScraper
 
-class BrowserStrategy:
+
+class BrowserStrategy(BaseScraper):
     """
     Full browser rendering using Playwright.
-    Optimized for speed and stealth.
+    Optimized for JS-heavy websites.
     """
 
     def get_name(self) -> str:
         return "browser"
+
+    def can_handle(self, url: str) -> bool:
+        # Browser can handle any URL, but is slower than static
+        return True
 
     async def fetch(
         self,
@@ -40,7 +45,6 @@ class BrowserStrategy:
                 ],
             )
 
-            # Human-like random viewport
             width = random.randint(1280, 1920)
             height = random.randint(720, 1080)
 
@@ -55,7 +59,6 @@ class BrowserStrategy:
 
             page = await context.new_page()
 
-            # Resource Blocking for speed
             async def block_resources(route):
                 if route.request.resource_type in ["image", "media", "font", "stylesheet"]:
                     await route.abort()
@@ -65,7 +68,6 @@ class BrowserStrategy:
             await page.route("**/*", block_resources)
 
             try:
-                # Add initial delay to look human
                 await asyncio.sleep(random.uniform(0.5, 1.5))
 
                 await page.goto(
@@ -77,22 +79,26 @@ class BrowserStrategy:
                 if wait_for_selector:
                     try:
                         await page.wait_for_selector(wait_for_selector, timeout=10_000)
-                    except:
-                        pass # Continue anyway
+                    except Exception:
+                        pass
 
-                # Random interaction to mimic human
-                await page.mouse.move(random.randint(0, width), random.randint(0, height))
+                await page.mouse.move(
+                    random.randint(0, width),
+                    random.randint(0, height),
+                )
 
                 html = await page.content()
 
                 if take_screenshot:
-                    screenshots_dir = os.path.join(os.getcwd(), "data", "artifacts", "snapshots")
+                    screenshots_dir = os.path.join(
+                        os.getcwd(), "data", "artifacts", "snapshots"
+                    )
                     os.makedirs(screenshots_dir, exist_ok=True)
                     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
                     screenshot_path = os.path.join(
                         screenshots_dir, f"snap_{timestamp}.png"
                     )
-                    await page.screenshot(path=screenshot_path, full_page=False)
+                    await page.screenshot(path=screenshot_path)
 
                 markdown = trafilatura.extract(
                     html,
@@ -106,4 +112,3 @@ class BrowserStrategy:
             finally:
                 await context.close()
                 await browser.close()
-
