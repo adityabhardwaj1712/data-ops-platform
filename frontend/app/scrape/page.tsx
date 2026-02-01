@@ -160,7 +160,7 @@ export default function ScrapePage() {
       setPreviewLoading(true)
       setPreviewData(null)
       const response = await api.post<any>("/api/scrape/preview", {
-        url,
+        urls,
         schema: JSON.parse(schema),
         strategy: "static"
       })
@@ -324,7 +324,7 @@ export default function ScrapePage() {
                     size="sm"
                     className="w-full gap-2 border-primary/20 text-primary hover:bg-primary/5"
                     onClick={handlePreview}
-                    disabled={previewLoading || !url}
+                    disabled={previewLoading || urls.length === 0}
                   >
                     <Zap className="h-4 w-4" />
                     {previewLoading ? "Running Preview..." : "Run Preview (Dry Run)"}
@@ -336,7 +336,7 @@ export default function ScrapePage() {
             <Button
               onClick={handleScrape}
               className="w-full h-14 text-lg font-bold bg-primary hover:bg-primary/90 shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all active:scale-[0.98] border border-white/10 group overflow-hidden relative"
-              disabled={loading || !url}
+              disabled={loading || urls.length === 0}
             >
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
               {loading ? (

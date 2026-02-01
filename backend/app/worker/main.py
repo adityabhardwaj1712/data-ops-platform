@@ -1,24 +1,39 @@
 import asyncio
 import logging
+from sqlalchemy.ext.asyncio import create_async_engine
 
+from app.core.config import settings
+from app.db.base import Base
 from app.worker.worker_service import worker_service
-from app.db import models
-from app.db.session import engine
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+async def wait_for_db(engine, retries=30, delay=2):
+    for i in range(retries):
+        try:
+            async with engine.connect():
+                logger.info("✅ Database is ready")
+                return
+        except Exception:
+            logger.info(f"⏳ Waiting for DB... ({i+1}/{retries})")
+            await asyncio.sleep(delay)
+    raise RuntimeError("❌ Database not reachable")
 
 
 async def main():
-    # ✅ Ensure tables exist
-    async with engine.begin() as conn:
-        await conn.run_sync(models.Base.metadata.create_all)
-    
-    await worker_service.start()
-    logging.info("🟢 Worker running and waiting for jobs")
+    engine = create_async_engine(settings.DATABASE_URL, echo=False)
 
-    # Keep container alive forever
-    while True:
-        await asyncio.sleep(3600)
+    # ⏳ WAIT FOR POSTGRES
+    await wait_for_db(engine)
+
+    # Create tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    # Start worker
+    await worker_service.start()
 
 
 if __name__ == "__main__":

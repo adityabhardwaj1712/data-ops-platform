@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.schemas import RobotsCheckRequest, RobotsCheckResponse
-from app.services.robots_checker import robots_checker
+from app.scraper.utils.robots_checker import robots_checker
 
 router = APIRouter()
 

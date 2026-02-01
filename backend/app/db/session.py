@@ -3,8 +3,8 @@ from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
 )
-from sqlalchemy.orm import DeclarativeBase
 from app.core.config import settings
+from app.db.base import Base
 
 
 # Detect SQLite
@@ -28,13 +28,8 @@ AsyncSessionLocal = async_sessionmaker(
     expire_on_commit=False,
 )
 
-# ✅ BACKWARD-COMPATIBLE ALIAS (THIS FIXES YOUR ERROR)
+# ✅ BACKWARD-COMPATIBLE ALIAS
 async_session_factory = AsyncSessionLocal
-
-
-class Base(DeclarativeBase):
-    """Base class for all models"""
-    pass
 
 
 async def get_db():
@@ -49,4 +44,3 @@ async def get_db():
         except Exception:
             await session.rollback()
             raise
-
