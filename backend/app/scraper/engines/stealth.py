@@ -12,6 +12,8 @@ from app.scraper.antibot.fingerprint import get_stealth_config
 from app.scraper.antibot.delays import human_like_delay, random_mouse_move
 from app.scraper.antibot.headers import get_random_user_agent
 from app.schemas import ScrapeResult, ScrapeFailureReason
+from app.scraper.processing.field_extractor import extract_fields
+
 
 
 class StealthStrategy(BaseScraper):

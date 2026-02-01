@@ -6,6 +6,8 @@ from typing import Dict, Any, Optional
 from app.scraper.logic.base import BaseScraper
 from app.scraper.antibot.headers import get_random_headers
 from app.schemas import ScrapeResult, ScrapeFailureReason
+from app.scraper.processing.field_extractor import extract_fields
+
 
 logger = logging.getLogger(__name__)
 

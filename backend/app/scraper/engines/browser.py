@@ -9,6 +9,8 @@ from playwright.async_api import async_playwright
 
 from app.scraper.logic.base import BaseScraper
 from app.schemas import ScrapeResult, ScrapeFailureReason
+from app.scraper.processing.field_extractor import extract_fields
+
 
 
 class BrowserStrategy(BaseScraper):
