@@ -1,78 +1,68 @@
-"""
-Static HTTP Strategy
-Fast and lightweight scraping using httpx
-Best for simple HTML pages without JavaScript rendering
-"""
 import httpx
 import trafilatura
-from typing import Tuple, Optional, Dict
-from app.scraper.engines.base import BaseStrategy
+import logging
+from typing import Dict, Any, Optional
+
+from app.scraper.logic.base import BaseScraper
 from app.scraper.antibot.headers import get_random_headers
+from app.schemas import ScrapeResult
+
+logger = logging.getLogger(__name__)
 
 
-class StaticStrategy(BaseStrategy):
+class StaticStrategy(BaseScraper):
     """
-    Fast HTTP-based scraping strategy.
-    
-    Uses httpx for async requests and trafilatura for content extraction.
-    Best for:
-    - Static HTML pages
-    - News articles
-    - Blogs
-    - Documentation sites
+    Static HTTP scraper.
+    LAST priority.
     """
-    
-    def get_name(self) -> str:
-        return "static"
-    
-    async def fetch(
+
+    def can_handle(self, url: str) -> bool:
+        # Avoid JS-heavy ecommerce
+        blocked = ["flipkart", "amazon", "myntra", "ajio"]
+        return not any(b in url.lower() for b in blocked)
+
+    async def scrape(
         self,
         url: str,
+        schema: Dict[str, Any],
+        job_id: str,
         timeout: int = 30,
-        use_proxy: bool = False,
         headers: Optional[Dict[str, str]] = None,
-        **kwargs
-    ) -> Tuple[str, str, Optional[str]]:
-        """
-        Fetch page content using HTTP request.
-        
-        Args:
-            url: Target URL
-            timeout: Request timeout in seconds
-            use_proxy: Whether to use proxy (not implemented yet)
-            headers: Custom headers to use
-            
-        Returns:
-            Tuple of (markdown_content, raw_html, screenshot_path)
-        """
-        # Use random realistic headers
-        request_headers = headers or get_random_headers()
-        
-        async with httpx.AsyncClient(
-            timeout=timeout,
-            follow_redirects=True,
-            http2=True
-        ) as client:
-            response = await client.get(url, headers=request_headers)
-            response.raise_for_status()
-            
+        **kwargs,
+    ) -> ScrapeResult:
+        try:
+            request_headers = headers or get_random_headers()
+
+            async with httpx.AsyncClient(
+                timeout=timeout,
+                follow_redirects=True,
+                http2=True,
+            ) as client:
+                response = await client.get(url, headers=request_headers)
+                response.raise_for_status()
+
             html = response.text
-            
-            # Extract main content as markdown
+
             markdown = trafilatura.extract(
                 html,
                 output_format="markdown",
                 include_links=True,
                 include_tables=True,
-                include_images=True
+            ) or ""
+
+            return ScrapeResult(
+                success=True,
+                data={
+                    "_raw_markdown": markdown,
+                    "_strategy": "static",
+                    "_confidence": 0.6,
+                },
             )
-            
-            if not markdown:
-                # Fallback: try with less strict settings
-                markdown = trafilatura.extract(
-                    html,
-                    output_format="markdown",
-                    no_fallback=False
-                )
-            
-            return markdown or "", html, None
+
+        except Exception as e:
+            logger.exception("StaticStrategy failed")
+            return ScrapeResult(
+                success=False,
+                failure_reason="static_failed",
+                failure_message=str(e),
+            )
