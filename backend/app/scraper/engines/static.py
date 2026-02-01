@@ -17,7 +17,6 @@ class StaticStrategy(BaseScraper):
     """
 
     def can_handle(self, url: str) -> bool:
-        # Avoid JS-heavy ecommerce
         blocked = ["flipkart", "amazon", "myntra", "ajio"]
         return not any(b in url.lower() for b in blocked)
 
