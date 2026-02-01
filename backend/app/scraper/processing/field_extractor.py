@@ -1,43 +1,59 @@
-from bs4 import BeautifulSoup
+import logging
 from typing import Dict, Any
-import re
+from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
+
+
+# ✅ Semantic fallbacks for common fields
+SEMANTIC_RULES = {
+    "title": [
+        "meta[property='og:title']",
+        "meta[name='title']",
+        "title",
+        "h1",
+        "h2"
+    ],
+    "price": [
+        "[class*='price']",
+        "[id*='price']",
+        "span"
+    ],
+    "rating": [
+        "[class*='rating']",
+        "[aria-label*='rating']"
+    ],
+    "description": [
+        "meta[name='description']",
+        "[class*='description']",
+        "p"
+    ]
+}
 
 
 def extract_fields(html: str, schema: Dict[str, Any]) -> Dict[str, Any]:
     soup = BeautifulSoup(html, "lxml")
-    result: Dict[str, Any] = {}
+    extracted: Dict[str, Any] = {}
 
-    full_text = soup.get_text(" ", strip=True)
-
-    for field in schema.keys():
-        field_l = field.lower()
+    for field, field_type in schema.items():
         value = None
 
-        # ---------- TITLE / NAME ----------
-        if field_l in ("title", "product_name", "name"):
-            # <title>
-            if soup.title:
-                value = soup.title.get_text(strip=True)
+        # ✅ Semantic extraction
+        selectors = SEMANTIC_RULES.get(field, [])
 
-            # <h1>
-            if not value:
-                h1 = soup.find("h1")
-                if h1:
-                    value = h1.get_text(strip=True)
+        for selector in selectors:
+            el = soup.select_one(selector)
+            if not el:
+                continue
 
-        # ---------- PRICE ----------
-        elif field_l == "price":
-            match = re.search(r"(₹|\$|€)\s?\d[\d,]*(\.\d+)?", full_text)
-            if match:
-                value = match.group(0)
+            # Meta tags
+            if el.name == "meta":
+                value = el.get("content")
+            else:
+                value = el.get_text(strip=True)
 
-        # ---------- RATING ----------
-        elif field_l == "rating":
-            match = re.search(r"\b\d(\.\d)?\b", full_text)
-            if match:
-                value = match.group(0)
+            if value:
+                extracted[field] = value[:500]
+                break
 
-        if value:
-            result[field] = value
-
-    return result
+    return extracted
