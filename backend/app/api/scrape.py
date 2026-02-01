@@ -18,6 +18,10 @@ from app.scraper.logic.registry import scraper_registry
 from app.llm.schema_builder import AISchemaBuilder
 from app.core.limits import limits
 
+# ✅ NEW IMPORTS FOR PREVIEW
+from app.scraper.engines.static import StaticStrategy
+from app.scraper.intelligence.preview import PreviewEngine
+
 router = APIRouter()
 
 
@@ -29,11 +33,6 @@ async def scrape_url(
     request: ScrapeRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Create a scraping job (async execution).
-    Worker will pick it from DB.
-    """
-
     if request.max_pages > limits.MAX_PAGES_PER_URL:
         raise HTTPException(
             status_code=400,
@@ -44,7 +43,6 @@ async def scrape_url(
     if not urls:
         raise HTTPException(status_code=400, detail="No URL(s) provided")
 
-    # Create Job
     job = Job(
         description=f"Scrape {len(urls)} URL(s)",
         schema=request.schema,
@@ -69,7 +67,6 @@ async def scrape_url(
     await db.commit()
     await db.refresh(job)
 
-    # Create Tasks (ONE PER URL)
     for url in urls:
         task_payload = job.config.copy()
         task_payload["url"] = url
@@ -81,14 +78,14 @@ async def scrape_url(
             is_seed=1,
         )
         db.add(task)
-    
+
     await db.commit()
 
     return {
         "job_id": str(job.id),
         "status": "queued",
         "url_count": len(urls),
-        "message": f"Scraping job queued with {len(urls)} tasks. Use GET /api/scrape/{{job_id}} to check status.",
+        "message": f"Scraping job queued with {len(urls)} tasks.",
     }
 
 
@@ -106,44 +103,26 @@ async def get_scrape_job(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    response = {
+    tasks_result = await db.execute(select(Task).where(Task.job_id == job.id))
+    tasks = tasks_result.scalars().all()
+
+    return {
         "job_id": str(job.id),
         "status": job.status.value,
         "description": job.description,
         "created_at": job.created_at.isoformat() if job.created_at else None,
+        "tasks": [
+            {
+                "task_id": str(t.id),
+                "url": t.payload.get("url"),
+                "status": t.status.value,
+                "retry_count": t.retry_count,
+                "failure_message": t.failure_message,
+                "result": t.result,
+            }
+            for t in tasks
+        ],
     }
-
-    # Attach result if available
-    if job.config:
-        if job.status == DBJobStatus.COMPLETED:
-            response["result"] = job.config.get("result")
-        if job.status == DBJobStatus.FAILED_FINAL:
-            response["error"] = job.config.get("error")
-
-    # Tasks info
-    tasks_result = await db.execute(
-        select(Task).where(Task.job_id == job.id)
-    )
-    tasks = tasks_result.scalars().all()
-    
-    response["tasks"] = [
-        {
-            "task_id": str(t.id),
-            "url": t.payload.get("url"),
-            "status": t.status.value,
-            "retry_count": t.retry_count,
-            "failure_message": t.failure_message,
-            "result": t.result
-        }
-        for t in tasks
-    ]
-
-    # Consolidated results if completed
-    if job.status == DBJobStatus.COMPLETED or job.status == DBJobStatus.FAILED_FINAL:
-        results = [t.result for t in tasks if t.result]
-        response["result"] = results if len(results) > 1 else (results[0] if results else None)
-
-    return response
 
 
 # -------------------------------------------------------------------
@@ -160,26 +139,6 @@ async def rerun_job(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    if new_config and job.config != new_config:
-        cfg_result = await db.execute(
-            select(JobConfig)
-            .where(JobConfig.job_id == job_id)
-            .order_by(JobConfig.version.desc())
-            .limit(1)
-        )
-        latest = cfg_result.scalar_one_or_none()
-        version = (latest.version + 1) if latest else 1
-
-        job.config.update(new_config)
-        db.add(
-            JobConfig(
-                job_id=job_id,
-                version=version,
-                config=job.config,
-                is_active=1,
-            )
-        )
-
     job.status = DBJobStatus.RERUNNING
 
     task = Task(
@@ -192,48 +151,6 @@ async def rerun_job(
     await db.commit()
 
     return {"status": "rerun_queued", "job_id": str(job_id)}
-
-
-# -------------------------------------------------------------------
-# REPLAY JOB
-# -------------------------------------------------------------------
-@router.post("/{job_id}/replay")
-async def replay_job(
-    job_id: UUID,
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(select(Job).where(Job.id == job_id))
-    job = result.scalar_one_or_none()
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    new_job = Job(
-        description=f"REPLAY: {job.description}",
-        schema=job.schema,
-        config=job.config.copy() if job.config else {},
-        status=DBJobStatus.CREATED,
-    )
-    new_job.config.pop("result", None)
-    new_job.config.pop("error", None)
-
-    db.add(new_job)
-    await db.commit()
-    await db.refresh(new_job)
-
-    task = Task(
-        job_id=new_job.id,
-        type=TaskType.SCRAPE,
-        payload=new_job.config,
-        status=TaskStatus.PENDING,
-    )
-    db.add(task)
-    await db.commit()
-
-    return {
-        "job_id": str(new_job.id),
-        "status": "replay_queued",
-        "parent_job_id": str(job_id),
-    }
 
 
 # -------------------------------------------------------------------
@@ -272,18 +189,20 @@ async def preflight_test(request: ScrapeRequest):
 async def preview_scrape(request: ScrapeRequest):
     scraper = await scraper_registry.get_scraper(request.url)
 
+    # 🔥 FORCE STATIC for preview (fast + safe)
     result = await scraper.scrape(
         url=request.url,
         schema=request.schema,
-        job_id="preview_" + str(uuid4()),
+        job_id="preview",
         strategy="static",
-        timeout=10,
+        timeout=min(request.timeout or 10, 15),
         temp=True,
     )
 
     from app.scraper.intelligence.preview import PreviewEngine
 
     engine = PreviewEngine()
+
     return engine.preview(
         result.metadata.get("html", ""),
         request.schema,
@@ -297,4 +216,7 @@ async def preview_scrape(request: ScrapeRequest):
 async def build_ai_schema(prompt: str):
     builder = AISchemaBuilder()
     schema = await builder.build(prompt)
-    return {"prompt": prompt, "generated_schema": schema}
+    return {
+        "prompt": prompt,
+        "generated_schema": schema,
+    }
