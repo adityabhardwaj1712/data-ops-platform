@@ -183,30 +183,36 @@ async def preflight_test(request: ScrapeRequest):
 
 
 # -------------------------------------------------------------------
-# PREVIEW
+# PREVIEW (FIXED – DIRECT STATIC FETCH)
 # -------------------------------------------------------------------
 @router.post("/preview")
 async def preview_scrape(request: ScrapeRequest):
-    scraper = await scraper_registry.get_scraper(request.url)
+    """
+    Fast schema preview.
+    - No DB
+    - No worker
+    - No escalation ladder
+    - Direct static HTML fetch
+    """
 
-    # 🔥 FORCE STATIC for preview (fast + safe)
-    result = await scraper.scrape(
-        url=request.url,
-        schema=request.schema,
-        job_id="preview",
-        strategy="static",
-        timeout=min(request.timeout or 10, 15),
-        temp=True,
-    )
-
+    from app.scraper.engines.static import StaticStrategy
     from app.scraper.intelligence.preview import PreviewEngine
 
+    static = StaticStrategy()
     engine = PreviewEngine()
 
-    return engine.preview(
-        result.metadata.get("html", ""),
-        request.schema,
-    )
+    try:
+        _, html, _ = await static.fetch(
+            request.url,
+            timeout=min(request.timeout or 10, 15),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Preview fetch failed: {str(e)}",
+        )
+
+    return engine.preview(html, request.schema)
 
 
 # -------------------------------------------------------------------
