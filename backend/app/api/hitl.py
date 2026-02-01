@@ -6,7 +6,6 @@ from uuid import UUID
 from app.db.session import get_db
 from app.db.models import Task, AuditLog, TaskType, TaskStatus
 from app.schemas import HITLTaskResponse, HITLSubmit
-from app.services.router import route_task
 
 
 router = APIRouter()
@@ -100,8 +99,8 @@ async def submit_review(
     db.add(audit)
     await db.commit()
     
-    # Route to next step
-    await route_task(task.id, db)
+    # Route to next step (handled by worker polling if needed, but here we just finish)
+    # await route_task(task.id, db)
     
     # Calculate turnaround time
     if task.created_at:
@@ -113,25 +112,36 @@ async def submit_review(
     return {"success": True, "task_id": str(task_id)}
 
 
-@router.post("/{task_id}/skip")
-async def skip_task(
+    return {"success": True, "message": "Task skipped"}
+
+
+@router.post("/{task_id}/approve")
+async def approve_task(
     task_id: UUID,
     db: AsyncSession = Depends(get_db)
 ):
-    """Skip a HITL task (mark as blocked)"""
+    """Manually approve a task stuck in NEEDS_REVIEW or NEEDS_HITL."""
     result = await db.execute(select(Task).where(Task.id == task_id))
     task = result.scalar_one_or_none()
-    
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    task.status = TaskStatus.BLOCKED
-    
-    audit = AuditLog(
-        task_id=task.id,
-        action="human_review_skipped"
-    )
-    db.add(audit)
+    task.status = TaskStatus.APPROVED
     await db.commit()
+    return {"status": "approved", "task_id": str(task_id)}
+
+
+@router.post("/{task_id}/reject")
+async def reject_task(
+    task_id: UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    """Manually reject a task."""
+    result = await db.execute(select(Task).where(Task.id == task_id))
+    task = result.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
     
-    return {"success": True, "message": "Task skipped"}
+    task.status = TaskStatus.REJECTED
+    await db.commit()
+    return {"status": "rejected", "task_id": str(task_id)}

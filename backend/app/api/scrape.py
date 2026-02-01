@@ -40,12 +40,16 @@ async def scrape_url(
             detail=f"Max pages exceeded. Platform limit: {limits.MAX_PAGES_PER_URL}",
         )
 
+    urls = request.url_list if request.url_list else ([request.url] if request.url else [])
+    if not urls:
+        raise HTTPException(status_code=400, detail="No URL(s) provided")
+
     # Create Job
     job = Job(
-        description=f"Scrape {request.url}",
+        description=f"Scrape {len(urls)} URL(s)",
         schema=request.schema,
         config={
-            "url": request.url,
+            "urls": urls,
             "prompt": request.prompt,
             "strategy": request.strategy.value,
             "max_pages": request.max_pages,
@@ -58,26 +62,33 @@ async def scrape_url(
             "auto_detect": request.auto_detect,
         },
         status=DBJobStatus.CREATED,
+        sla_seconds=request.sla_seconds,
+        webhook_url=request.webhook_url,
     )
     db.add(job)
     await db.commit()
     await db.refresh(job)
 
-    # Create Task (THIS IS THE QUEUE)
-    task = Task(
-        job_id=job.id,
-        type=TaskType.SCRAPE,
-        payload=job.config,
-        status=TaskStatus.PENDING,
-        is_seed=1,
-    )
-    db.add(task)
+    # Create Tasks (ONE PER URL)
+    for url in urls:
+        task_payload = job.config.copy()
+        task_payload["url"] = url
+        task = Task(
+            job_id=job.id,
+            type=TaskType.SCRAPE,
+            payload=task_payload,
+            status=TaskStatus.PENDING,
+            is_seed=1,
+        )
+        db.add(task)
+    
     await db.commit()
 
     return {
         "job_id": str(job.id),
         "status": "queued",
-        "message": "Scraping job queued. Use GET /api/scrape/{job_id} to check status.",
+        "url_count": len(urls),
+        "message": f"Scraping job queued with {len(urls)} tasks. Use GET /api/scrape/{{job_id}} to check status.",
     }
 
 
@@ -109,18 +120,28 @@ async def get_scrape_job(
         if job.status == DBJobStatus.FAILED_FINAL:
             response["error"] = job.config.get("error")
 
-    # Task info
-    task_result = await db.execute(
+    # Tasks info
+    tasks_result = await db.execute(
         select(Task).where(Task.job_id == job.id)
     )
-    task = task_result.scalar_one_or_none()
-    if task:
-        response["task"] = {
-            "task_id": str(task.id),
-            "status": task.status.value,
-            "retry_count": task.retry_count,
-            "failure_message": task.failure_message,
+    tasks = tasks_result.scalars().all()
+    
+    response["tasks"] = [
+        {
+            "task_id": str(t.id),
+            "url": t.payload.get("url"),
+            "status": t.status.value,
+            "retry_count": t.retry_count,
+            "failure_message": t.failure_message,
+            "result": t.result
         }
+        for t in tasks
+    ]
+
+    # Consolidated results if completed
+    if job.status == DBJobStatus.COMPLETED or job.status == DBJobStatus.FAILED_FINAL:
+        results = [t.result for t in tasks if t.result]
+        response["result"] = results if len(results) > 1 else (results[0] if results else None)
 
     return response
 

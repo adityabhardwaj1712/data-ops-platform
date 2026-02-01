@@ -76,9 +76,13 @@ class TaskStatus(str, enum.Enum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     BLOCKED = "BLOCKED"
+    RETRYING = "RETRYING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     NEEDS_HITL = "NEEDS_HITL"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
 
 
 # =========================
@@ -95,6 +99,9 @@ class Job(Base):
     config = Column(JSON, nullable=True)
     config_metadata = Column(JSON, nullable=True)
     status = Column(SQLEnum(JobStatus), default=JobStatus.CREATED, nullable=False)
+    
+    sla_seconds = Column(Integer, default=300, nullable=False)
+    webhook_url = Column(String(512), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -150,6 +157,10 @@ class Task(Base):
     failure_message = Column(Text, nullable=True)
 
     retry_count = Column(Integer, default=0)
+    priority = Column(Integer, default=0, nullable=False)
+    explanation = Column(JSON, nullable=True)
+    
+    started_at = Column(DateTime(timezone=True), nullable=True)
     config_version = Column(Integer, nullable=True)
     assigned_to = Column(Integer, nullable=True)
 

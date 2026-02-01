@@ -1,7 +1,8 @@
 "use client"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Globe, List, Shield, Zap, Search, Activity } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Globe, List, Shield, Zap, Search, Activity, ArrowUpRight } from 'lucide-react'
 import Link from 'next/link'
 
 export default function Dashboard() {
@@ -68,19 +69,29 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="glass-card p-8 animate-in stagger-3">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold font-outfit flex items-center gap-2">
-            <Zap className="h-5 w-5 text-yellow-500 fill-yellow-500/20" />
-            System Statistics
-          </h3>
-          <span className="text-xs font-mono text-muted-foreground">v2.5.0-STABLE</span>
+      <div className="glass-card p-10 animate-in stagger-3 relative overflow-hidden group">
+        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+          <Zap className="h-32 w-32 text-primary" />
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
-          <StatItem label="Jobs Completed" value="1,284" />
-          <StatItem label="Success Rate" value="98.2%" />
-          <StatItem label="Avg. Latency" value="1.4s" />
-          <StatItem label="Proxy Health" value="100%" />
+        <div className="flex items-center justify-between mb-10 relative z-10">
+          <div>
+            <h3 className="text-2xl font-bold font-outfit flex items-center gap-3">
+              <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                <Activity className="h-5 w-5 text-primary" />
+              </div>
+              Platform Intelligence
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">Real-time infrastructure health and performance metrics</p>
+          </div>
+          <Badge variant="outline" className="px-3 py-1 border-white/10 bg-white/5 font-mono text-[10px] uppercase tracking-tighter">
+            System: Stable
+          </Badge>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-12 relative z-10">
+          <StatItem label="Entities Extracted" value="284,912" trend="+12.5%" />
+          <StatItem label="Extraction Quality" value="99.4%" trend="Optimal" />
+          <StatItem label="Engine Latency" value="0.84s" trend="-0.2s" />
+          <StatItem label="Success Rate" value="98.2%" trend="Stable" />
         </div>
       </div>
     </div>
@@ -101,11 +112,19 @@ function DashboardCard({ href, icon, title, description, delay }: { href: string
   )
 }
 
-function StatItem({ label, value }: { label: string, value: string }) {
+function StatItem({ label, value, trend }: { label: string, value: string, trend?: string }) {
   return (
-    <div className="space-y-1">
-      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
-      <p className="text-2xl font-bold font-outfit text-white">{value}</p>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{label}</p>
+        {trend && (
+          <div className="flex items-center gap-1 text-[8px] font-bold text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded-full">
+            <ArrowUpRight className="h-2 w-2" />
+            {trend}
+          </div>
+        )}
+      </div>
+      <p className="text-3xl font-bold font-outfit text-white tracking-tighter">{value}</p>
     </div>
   )
 }

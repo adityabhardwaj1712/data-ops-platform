@@ -2,6 +2,8 @@ fastapi==0.110.0
 uvicorn[standard]==0.27.1
 pydantic==2.6.4
 pydantic-settings==2.2.1
+asyncpg
+psycopg2-binary
 sqlalchemy==2.0.29
 alembic==1.13.1
 aiosqlite==0.19.0

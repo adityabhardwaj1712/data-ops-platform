@@ -6,12 +6,14 @@ from enum import Enum
 
 
 class JobStatus(str, Enum):
-    PENDING = "PENDING"
+    CREATED = "CREATED"
     RUNNING = "RUNNING"
-    SUCCESS = "SUCCESS"
-    FAILED_FINAL = "FAILED_FINAL"
+    VALIDATING = "VALIDATING"
     NEEDS_HITL = "NEEDS_HITL"
     RERUNNING = "RERUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED_FINAL = "FAILED_FINAL"
+    ARCHIVED = "ARCHIVED"
 
 
 class ScrapeFailureReason(str, Enum):
@@ -35,9 +37,13 @@ class TaskStatus(str, Enum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     BLOCKED = "BLOCKED"
-    SUCCESS = "SUCCESS"
+    RETRYING = "RETRYING"
+    COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     NEEDS_HITL = "NEEDS_HITL"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
 
 
 class ScrapeConfigMetadata(BaseModel):
@@ -114,7 +120,8 @@ class ScrapeStrategy(str, Enum):
 
 
 class ScrapeRequest(BaseModel):
-    url: str
+    url: Optional[str] = None
+    url_list: Optional[List[str]] = None
     prompt: Optional[str] = None
     schema: Dict[str, Any]
     strategy: ScrapeStrategy = ScrapeStrategy.AUTO
@@ -126,6 +133,8 @@ class ScrapeRequest(BaseModel):
     filters: Optional[Dict[str, Any]] = None
     debug: bool = False
     auto_detect: bool = False
+    sla_seconds: int = Field(default=300, ge=30)
+    webhook_url: Optional[str] = None
 
 
 class ScrapeResult(BaseModel):

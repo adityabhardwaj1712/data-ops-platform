@@ -7,23 +7,32 @@ services:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
-    develop:
-      watch:
-        - action: sync
-          path: ./frontend
-          target: /app
-          ignore:
-            - node_modules/
-            - .next/
+
+  db:
+    image: postgres:15
+    container_name: dataops_db
+    environment:
+      POSTGRES_USER: dataops
+      POSTGRES_PASSWORD: dataops
+      POSTGRES_DB: dataops
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
 
   api:
     build:
       context: ./backend
       dockerfile: Dockerfile.api
     container_name: dataops_api
-    env_file: .env
     ports:
       - "8000:8000"
+    volumes:
+      - ./backend/app/data:/app/data
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://dataops:dataops@db:5432/dataops
+    depends_on:
+      - db
     develop:
       watch:
         - action: sync
@@ -35,9 +44,17 @@ services:
       context: ./backend
       dockerfile: Dockerfile.worker
     container_name: dataops_worker
-    env_file: .env
+    volumes:
+      - ./backend/app/data:/app/data
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://dataops:dataops@db:5432/dataops
+    depends_on:
+      - db
     develop:
       watch:
         - action: sync
           path: ./backend/app
           target: /app/app
+
+volumes:
+  pgdata:

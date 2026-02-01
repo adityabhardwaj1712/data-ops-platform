@@ -96,7 +96,7 @@ async def export_dataset(
 @router.get("/download/{filename}")
 async def download_export(filename: str):
     """Download an exported file"""
-    filepath = Path("exports") / filename
+    filepath = Path("/app/data/exports") / filename
 
     if not filepath.exists():
         raise HTTPException(status_code=404, detail="File found")

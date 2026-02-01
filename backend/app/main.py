@@ -122,8 +122,9 @@ app.include_router(robots.router, prefix="/api/robots", tags=["robots"])
 # Health Checks & Static Files
 # -------------------------------------------------
 from fastapi.staticfiles import StaticFiles
-os.makedirs("data/artifacts", exist_ok=True)
-app.mount("/data/artifacts", StaticFiles(directory="data/artifacts"), name="artifacts")
+os.makedirs("/app/data/artifacts", exist_ok=True)
+os.makedirs("/app/data/exports", exist_ok=True)
+app.mount("/data", StaticFiles(directory="/app/data"), name="data")
 
 app.include_router(health_router, tags=["health"])
 

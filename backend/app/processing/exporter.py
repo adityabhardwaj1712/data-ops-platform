@@ -24,9 +24,9 @@ from app.schemas import ExportFormat, ExportRequest, ExportResponse
 class DataExporter:
     """Service for exporting dataset versions to various formats"""
 
-    def __init__(self, export_dir: str = "exports"):
+    def __init__(self, export_dir: str = "/app/data/exports"):
         self.export_dir = Path(export_dir)
-        self.export_dir.mkdir(exist_ok=True)
+        self.export_dir.mkdir(parents=True, exist_ok=True)
 
     async def export_dataset(
         self,
