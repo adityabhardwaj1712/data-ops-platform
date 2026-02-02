@@ -1,59 +1,60 @@
-import logging
 from typing import Dict, Any
 from bs4 import BeautifulSoup
+import logging
 
 logger = logging.getLogger(__name__)
 
 
-# ✅ Semantic fallbacks for common fields
-SEMANTIC_RULES = {
-    "title": [
-        "meta[property='og:title']",
-        "meta[name='title']",
-        "title",
-        "h1",
-        "h2"
-    ],
-    "price": [
-        "[class*='price']",
-        "[id*='price']",
-        "span"
-    ],
-    "rating": [
-        "[class*='rating']",
-        "[aria-label*='rating']"
-    ],
-    "description": [
-        "meta[name='description']",
-        "[class*='description']",
-        "p"
-    ]
+COMMON_SELECTORS = {
+    "title": ["h1", "h2", "title"],
+    "price": [".price", ".price_color", "[itemprop=price]"],
+    "rating": [".rating", ".star-rating"],
 }
 
 
-def extract_fields(html: str, schema: Dict[str, Any]) -> Dict[str, Any]:
+def extract_fields(
+    html: str,
+    schema: Dict[str, Any],
+    ai_suggestor=None,   # optional
+) -> Dict[str, Any]:
+
     soup = BeautifulSoup(html, "lxml")
-    extracted: Dict[str, Any] = {}
+    extracted = {}
 
-    for field, field_type in schema.items():
-        value = None
+    for field, rule in schema.items():
 
-        # ✅ Semantic extraction
-        selectors = SEMANTIC_RULES.get(field, [])
+        # -----------------------
+        # 1️⃣ MANUAL SELECTOR
+        # -----------------------
+        if rule != "string":
+            el = soup.select_one(rule)
+            if el:
+                extracted[field] = el.get_text(strip=True)
+            continue
 
-        for selector in selectors:
-            el = soup.select_one(selector)
-            if not el:
-                continue
-
-            # Meta tags
-            if el.name == "meta":
-                value = el.get("content")
-            else:
-                value = el.get_text(strip=True)
-
-            if value:
-                extracted[field] = value[:500]
+        # -----------------------
+        # 2️⃣ HEURISTIC SELECTORS
+        # -----------------------
+        for sel in COMMON_SELECTORS.get(field, []):
+            el = soup.select_one(sel)
+            if el:
+                extracted[field] = el.get_text(strip=True)
                 break
+
+        if field in extracted:
+            continue
+
+        # -----------------------
+        # 3️⃣ AI (OPTIONAL)
+        # -----------------------
+        if ai_suggestor:
+            try:
+                suggested = ai_suggestor(html, field)
+                if suggested:
+                    el = soup.select_one(suggested)
+                    if el:
+                        extracted[field] = el.get_text(strip=True)
+            except Exception as e:
+                logger.warning(f"AI selector failed for {field}: {e}")
 
     return extracted

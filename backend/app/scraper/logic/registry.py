@@ -20,8 +20,8 @@ class ScraperRegistry:
 
     async def get_scraper(self, url: str) -> BaseScraper:
         """
-        Select the first scraper that claims it can handle the URL.
-        NOTE: can_handle() is SYNC by design → DO NOT await it.
+        Select first scraper that can handle the URL.
+        can_handle() is SYNC by design.
         """
         for scraper in self._scrapers:
             try:
@@ -32,10 +32,9 @@ class ScraperRegistry:
                     return scraper
             except Exception as e:
                 logger.warning(
-                    f"Scraper {scraper.__class__.__name__} failed can_handle(): {e}"
+                    f"Scraper {scraper.__class__.__name__} can_handle() failed: {e}"
                 )
 
-        # Fallback to default scraper
         if self._default_scraper:
             logger.info(
                 f"No specialized scraper found for {url}. "
@@ -43,21 +42,20 @@ class ScraperRegistry:
             )
             return self._default_scraper
 
-        logger.error(f"No scraper available for URL: {url}")
-        raise ValueError("No suitable scraper found and no default scraper registered.")
+        raise ValueError("No suitable scraper found.")
 
 
-# -----------------------------
+# -------------------------------------------------
 # Registry initialization
-# -----------------------------
+# -------------------------------------------------
 
 scraper_registry = ScraperRegistry()
 
 
 def initialize_scrapers():
     """
-    Register all scraping strategies.
-    Order matters: more specific → more generic.
+    Order matters:
+    static → browser → stealth → domain → generic
     """
     from app.scraper.engines.static import StaticStrategy
     from app.scraper.engines.browser import BrowserStrategy
@@ -72,5 +70,4 @@ def initialize_scrapers():
     scraper_registry.register(GenericScraper(), is_default=True)
 
 
-# Auto-initialize on import
 initialize_scrapers()

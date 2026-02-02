@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 class StaticStrategy(BaseScraper):
     """
     Static HTTP scraper (lowest priority).
+
     Used for:
     - Preview
     - Preflight
@@ -28,7 +29,7 @@ class StaticStrategy(BaseScraper):
         return not any(b in url.lower() for b in blocked)
 
     # ------------------------------------------------------------------
-    # 🔥 NEW: FETCH (REQUIRED FOR PREVIEW)
+    # FETCH (USED BY PREVIEW / PREFLIGHT)
     # ------------------------------------------------------------------
     async def fetch(
         self,
@@ -38,12 +39,12 @@ class StaticStrategy(BaseScraper):
         **kwargs,
     ) -> Tuple[str, str, Optional[str]]:
         """
-        Fetch raw HTML for preview & preflight.
+        Fetch raw HTML.
 
         Returns:
-            content     -> plain text
+            content     -> raw HTML (same for static)
             html        -> raw HTML
-            screenshot  -> None (static has no screenshots)
+            screenshot  -> None
         """
 
         try:
@@ -61,7 +62,7 @@ class StaticStrategy(BaseScraper):
                 f"[STATIC] fetch ok | url={url} | html_len={len(html)}"
             )
 
-            return html, html, None  # content, html, screenshot
+            return html, html, None
 
         except Exception as e:
             logger.exception("[STATIC] fetch failed")
@@ -81,22 +82,11 @@ class StaticStrategy(BaseScraper):
     ) -> ScrapeResult:
 
         try:
-            async with httpx.AsyncClient(
+            html, _, _ = await self.fetch(
+                url=url,
                 timeout=timeout,
-                follow_redirects=True,
-                headers=headers or get_random_headers(),
-            ) as client:
-                response = await client.get(url)
-                response.raise_for_status()
-
-            html = response.text or ""
-
-            markdown = trafilatura.extract(
-                html,
-                output_format="markdown",
-                include_links=True,
-                include_tables=True,
-            ) or ""
+                headers=headers,
+            )
 
             if not html.strip():
                 return ScrapeResult(
@@ -107,12 +97,14 @@ class StaticStrategy(BaseScraper):
                     failure_message="Empty HTML response",
                 )
 
-            # Extract schema fields if provided
-            extracted = (
-                extract_fields(html, schema)
-                if schema
-                else {}
-            )
+            markdown = trafilatura.extract(
+                html,
+                output_format="markdown",
+                include_links=True,
+                include_tables=True,
+            ) or ""
+
+            extracted = extract_fields(html, schema) if schema else {}
 
             return ScrapeResult(
                 success=True,
