@@ -26,12 +26,12 @@ class WorkerService:
         # Recovery supervisor
         asyncio.create_task(self.recovery_loop())
 
-        tasks = [
+        workers = [
             asyncio.create_task(self.worker_loop(i))
             for i in range(self.concurrency)
         ]
 
-        await asyncio.gather(*tasks)
+        await asyncio.gather(*workers)
 
     async def recovery_loop(self):
         """Periodically check for stuck tasks."""
@@ -41,6 +41,7 @@ class WorkerService:
                     await recover_stuck_tasks(db)
             except Exception as e:
                 logger.error(f"Recovery loop error: {e}")
+
             await asyncio.sleep(300)  # 5 minutes
 
     async def worker_loop(self, worker_id: int):
@@ -58,22 +59,37 @@ class WorkerService:
                     logger.info(f"Worker {worker_id} executing task {task.id}")
 
                     try:
+                        # ----------------------------------
                         # Fetch job
+                        # ----------------------------------
                         job = await db.get(Job, task.job_id)
                         if not job:
                             raise ValueError(f"Job {task.job_id} not found")
 
+                        # ----------------------------------
                         # Select scraper
+                        # ----------------------------------
                         url = task.payload.get("url")
+                        if not url:
+                            raise ValueError("Task payload missing 'url'")
+
                         scraper = await scraper_registry.get_scraper(url)
 
-                        # Execute scrape
+                        # ----------------------------------
+                        # Sanitize payload (CRITICAL FIX)
+                        # ----------------------------------
+                        payload = dict(task.payload)
+                        payload.pop("url", None)  # ✅ REMOVE DUPLICATE
+
+                        # ----------------------------------
+                        # Execute scrape (URL PASSED ONCE)
+                        # ----------------------------------
                         result = await scraper.scrape(
-                            url=url,
+                            url,
                             schema=job.schema,
                             job_id=str(job.id),
                             db=db,
-                            **task.payload,
+                            **payload,
                         )
 
                         confidence = (
@@ -96,7 +112,9 @@ class WorkerService:
 
                         await db.commit()
 
-                        # Finalize job if needed
+                        # ----------------------------------
+                        # Finalize job if all tasks done
+                        # ----------------------------------
                         await self.finalize_job_if_done(db, job)
 
                     except Exception as e:
@@ -112,7 +130,7 @@ class WorkerService:
     async def fetch_task(self, db):
         """
         Priority-based polling with SLA-aware ordering.
-        Compatible with SQLAlchemy 1.4 + PostgreSQL.
+        PostgreSQL-safe (no make_interval).
         """
         stmt = (
             select(Task)
@@ -124,7 +142,6 @@ class WorkerService:
                 )
             )
             .order_by(
-                # ✅ CORRECT SLA LOGIC (NO make_interval)
                 Task.created_at
                 + func.coalesce(Job.sla_seconds, 0) * text("INTERVAL '1 second'"),
                 desc(Task.priority),

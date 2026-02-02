@@ -7,6 +7,14 @@ services:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
+    command: npm run dev
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend
+          target: /app
+    volumes:
+      - /app/node_modules
 
   db:
     image: postgres:15
@@ -27,8 +35,6 @@ services:
     container_name: dataops_api
     ports:
       - "8000:8000"
-    volumes:
-      - ./backend/app/data:/app/data
     environment:
       - DATABASE_URL=postgresql+asyncpg://dataops:dataops@db:5432/dataops
     depends_on:
@@ -44,8 +50,6 @@ services:
       context: ./backend
       dockerfile: Dockerfile.worker
     container_name: dataops_worker
-    volumes:
-      - ./backend/app/data:/app/data
     environment:
       - DATABASE_URL=postgresql+asyncpg://dataops:dataops@db:5432/dataops
     depends_on:

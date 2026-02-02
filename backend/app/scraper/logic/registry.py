@@ -1,45 +1,53 @@
 import logging
-from typing import List, Optional
+from typing import Dict, Any, List, Optional
+
 from app.scraper.logic.base import BaseScraper
 
 logger = logging.getLogger(__name__)
 
 
 class ScraperRegistry:
-    def __init__(self):
+    def __init__(self) -> None:
         self._scrapers: List[BaseScraper] = []
         self._default_scraper: Optional[BaseScraper] = None
 
-    def register(self, scraper: BaseScraper, is_default: bool = False):
+    def register(self, scraper: BaseScraper, is_default: bool = False) -> None:
+        """
+        Register a scraper strategy.
+        Order matters (first match wins).
+        """
         self._scrapers.append(scraper)
 
         if is_default:
             self._default_scraper = scraper
 
-        logger.info(f"Registered scraper: {scraper.__class__.__name__}")
+        logger.info("Registered scraper: %s", scraper.__class__.__name__)
 
     async def run_with_fallback(
         self,
         url: str,
         schema: Dict[str, Any],
         job_id: str,
-        **kwargs,
+        **kwargs: Any,
     ):
         """
         Runs scrapers in order until one succeeds.
-        Static -> Browser -> Stealth
+        Strategy order:
+        static → browser → stealth → domain → generic
         """
-        last_error = None
-        attempted_strategies = []
+        last_error: Optional[str] = None
+        attempted_strategies: List[str] = []
 
         for scraper in self._scrapers:
-            try:
-                if not scraper.can_handle(url):
-                    continue
+            if not scraper.can_handle(url):
+                continue
 
-                logger.info(f"Attempting {scraper.get_name()} for {url}")
-                attempted_strategies.append(scraper.get_name())
-                
+            strategy_name = scraper.get_name()
+            attempted_strategies.append(strategy_name)
+
+            logger.info("Attempting %s for %s", strategy_name, url)
+
+            try:
                 result = await scraper.scrape(
                     url=url,
                     schema=schema,
@@ -50,17 +58,42 @@ class ScraperRegistry:
                 if result.success:
                     if result.metadata is None:
                         result.metadata = {}
+
                     result.metadata["attempted_strategies"] = attempted_strategies
                     return result
 
                 last_error = result.failure_message
-                logger.warning(f"{scraper.get_name()} failed: {last_error}")
+                logger.warning("%s failed: %s", strategy_name, last_error)
 
-            except Exception as e:
-                last_error = str(e)
-                logger.error(f"Error in {scraper.get_name()}: {last_error}")
+            except Exception as exc:
+                last_error = str(exc)
+                logger.exception(
+                    "Unhandled error in %s for %s", strategy_name, url
+                )
 
-        raise RuntimeError(f"All strategies failed: {last_error}")
+        # Fallback to default scraper if defined
+        if self._default_scraper:
+            logger.warning(
+                "All strategies failed. Falling back to default scraper: %s",
+                self._default_scraper.get_name(),
+            )
+
+            result = await self._default_scraper.scrape(
+                url=url,
+                schema=schema,
+                job_id=job_id,
+                **kwargs,
+            )
+
+            if result.metadata is None:
+                result.metadata = {}
+
+            result.metadata["attempted_strategies"] = attempted_strategies + [
+                self._default_scraper.get_name()
+            ]
+            return result
+
+        raise RuntimeError(f"All scraping strategies failed: {last_error}")
 
 
 # -------------------------------------------------
@@ -70,7 +103,7 @@ class ScraperRegistry:
 scraper_registry = ScraperRegistry()
 
 
-def initialize_scrapers():
+def initialize_scrapers() -> None:
     """
     Order matters:
     static → browser → stealth → domain → generic
