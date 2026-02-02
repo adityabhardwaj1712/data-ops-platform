@@ -18,31 +18,49 @@ class ScraperRegistry:
 
         logger.info(f"Registered scraper: {scraper.__class__.__name__}")
 
-    async def get_scraper(self, url: str) -> BaseScraper:
+    async def run_with_fallback(
+        self,
+        url: str,
+        schema: Dict[str, Any],
+        job_id: str,
+        **kwargs,
+    ):
         """
-        Select first scraper that can handle the URL.
-        can_handle() is SYNC by design.
+        Runs scrapers in order until one succeeds.
+        Static -> Browser -> Stealth
         """
+        last_error = None
+        attempted_strategies = []
+
         for scraper in self._scrapers:
             try:
-                if scraper.can_handle(url):
-                    logger.info(
-                        f"Selected scraper {scraper.__class__.__name__} for {url}"
-                    )
-                    return scraper
-            except Exception as e:
-                logger.warning(
-                    f"Scraper {scraper.__class__.__name__} can_handle() failed: {e}"
+                if not scraper.can_handle(url):
+                    continue
+
+                logger.info(f"Attempting {scraper.get_name()} for {url}")
+                attempted_strategies.append(scraper.get_name())
+                
+                result = await scraper.scrape(
+                    url=url,
+                    schema=schema,
+                    job_id=job_id,
+                    **kwargs,
                 )
 
-        if self._default_scraper:
-            logger.info(
-                f"No specialized scraper found for {url}. "
-                f"Using default scraper: {self._default_scraper.__class__.__name__}"
-            )
-            return self._default_scraper
+                if result.success:
+                    if result.metadata is None:
+                        result.metadata = {}
+                    result.metadata["attempted_strategies"] = attempted_strategies
+                    return result
 
-        raise ValueError("No suitable scraper found.")
+                last_error = result.failure_message
+                logger.warning(f"{scraper.get_name()} failed: {last_error}")
+
+            except Exception as e:
+                last_error = str(e)
+                logger.error(f"Error in {scraper.get_name()}: {last_error}")
+
+        raise RuntimeError(f"All strategies failed: {last_error}")
 
 
 # -------------------------------------------------
@@ -60,9 +78,11 @@ def initialize_scrapers():
     from app.scraper.engines.static import StaticStrategy
     from app.scraper.engines.browser import BrowserStrategy
     from app.scraper.engines.stealth import StealthStrategy
+    from app.scraper.engines.linkedin import LinkedInScraper
     from app.scraper.logic.product import ProductScraper
     from app.scraper.logic.generic import GenericScraper
 
+    scraper_registry.register(LinkedInScraper())
     scraper_registry.register(StaticStrategy())
     scraper_registry.register(BrowserStrategy())
     scraper_registry.register(StealthStrategy())

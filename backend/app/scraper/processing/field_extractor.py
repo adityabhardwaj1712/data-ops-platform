@@ -12,10 +12,10 @@ COMMON_SELECTORS = {
 }
 
 
-def extract_fields(
+async def extract_fields(
     html: str,
     schema: Dict[str, Any],
-    ai_suggestor=None,   # optional
+    llm_client=None,   # optional
 ) -> Dict[str, Any]:
 
     soup = BeautifulSoup(html, "lxml")
@@ -26,32 +26,36 @@ def extract_fields(
         # -----------------------
         # 1️⃣ MANUAL SELECTOR
         # -----------------------
-        if rule != "string":
+        if rule not in ("string", "number", "text", "auto"):
             el = soup.select_one(rule)
             if el:
                 extracted[field] = el.get_text(strip=True)
-            continue
+                continue
 
         # -----------------------
         # 2️⃣ HEURISTIC SELECTORS
         # -----------------------
+        found = False
         for sel in COMMON_SELECTORS.get(field, []):
             el = soup.select_one(sel)
             if el:
                 extracted[field] = el.get_text(strip=True)
+                found = True
                 break
 
-        if field in extracted:
+        if found:
             continue
 
         # -----------------------
-        # 3️⃣ AI (OPTIONAL)
+        # 3️⃣ AI SELECTOR (OPTIONAL)
         # -----------------------
-        if ai_suggestor:
+        if llm_client:
             try:
-                suggested = ai_suggestor(html, field)
-                if suggested:
-                    el = soup.select_one(suggested)
+                # Take a snippet of HTML to be token-efficient
+                snippet = html[:10000] 
+                suggested_selector = await llm_client.guess_selector(field, snippet)
+                if suggested_selector:
+                    el = soup.select_one(suggested_selector)
                     if el:
                         extracted[field] = el.get_text(strip=True)
             except Exception as e:

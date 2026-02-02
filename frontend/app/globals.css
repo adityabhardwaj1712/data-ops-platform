@@ -45,6 +45,23 @@
       radial-gradient(circle at 100% 0%, hsla(320, 70%, 50%, 0.1) 0%, transparent 30%),
       radial-gradient(circle at 0% 100%, hsla(200, 70%, 50%, 0.1) 0%, transparent 30%);
   }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300 text-muted-foreground hover:text-white hover:bg-white/5 relative group;
+  }
+
+  .sidebar-item-active {
+    @apply sidebar-item text-white bg-white/10 border border-white/5;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
 
 body {

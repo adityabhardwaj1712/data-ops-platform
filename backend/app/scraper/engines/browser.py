@@ -60,9 +60,11 @@ class BrowserStrategy(BaseScraper):
                         failure_message="Rendered page but no extractable content",
                     )
 
-                screenshot_dir = "/app/data/artifacts/screenshots"
+                extracted = await extract_fields(html, schema) if schema else {}
+
+                screenshot_dir = os.path.join(os.getcwd(), "data", "artifacts", "screenshots")
                 os.makedirs(screenshot_dir, exist_ok=True)
-                screenshot_path = f"{screenshot_dir}/{job_id}_{datetime.utcnow().isoformat()}.png"
+                screenshot_path = os.path.join(screenshot_dir, f"browser_{job_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.png")
                 await page.screenshot(path=screenshot_path)
 
                 await context.close()
@@ -72,7 +74,10 @@ class BrowserStrategy(BaseScraper):
                     success=True,
                     status="success",
                     strategy_used="browser",
-                    data={"_raw_markdown": markdown},
+                    data={
+                        **extracted,
+                        "_raw_markdown": markdown
+                    },
                     screenshots=[screenshot_path],
                     confidence=80.0,
                     metadata={"engine": "browser"},

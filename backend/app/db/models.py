@@ -316,3 +316,40 @@ class DataSnapshot(Base):
     data_json = Column(JSON, nullable=False)
 
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
+
+
+# =========================
+# PRICING PLAN
+# =========================
+
+class PricingPlan(Base):
+    __tablename__ = "pricing_plans"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(50), unique=True, nullable=False)
+    monthly_quota = Column(Integer, default=1000)
+    price_cents = Column(Integer, default=0)
+    features = Column(JSON, nullable=True)
+
+# =========================
+# API KEY
+# =========================
+
+class ApiKey(Base):
+    __tablename__ = "api_keys"
+
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
+    key = Column(String(64), unique=True, nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    
+    owner_id = Column(Integer, nullable=True)
+    plan_id = Column(Integer, ForeignKey("pricing_plans.id"), nullable=True)
+    
+    quota_limit = Column(Integer, default=100)
+    quota_used = Column(Integer, default=0)
+    
+    is_active = Column(Integer, default=1)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+
+    plan = relationship("PricingPlan")

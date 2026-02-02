@@ -25,7 +25,17 @@ class StaticStrategy(BaseScraper):
     # CAPABILITY CHECK
     # ------------------------------------------------------------------
     def can_handle(self, url: str) -> bool:
-        blocked = ["flipkart", "amazon", "myntra", "ajio"]
+        blocked = [
+            "flipkart",
+            "amazon",
+            "linkedin",
+            "twitter",
+            "x.com",
+            "zomato",
+            "swiggy",
+            "myntra",
+            "ajio"
+        ]
         return not any(b in url.lower() for b in blocked)
 
     # ------------------------------------------------------------------
@@ -104,7 +114,7 @@ class StaticStrategy(BaseScraper):
                 include_tables=True,
             ) or ""
 
-            extracted = extract_fields(html, schema) if schema else {}
+            extracted = await extract_fields(html, schema) if schema else {}
 
             return ScrapeResult(
                 success=True,

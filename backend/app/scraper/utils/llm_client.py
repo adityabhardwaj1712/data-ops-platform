@@ -21,8 +21,14 @@ class LLMClient:
             return '{"name": "h1", "price": ".price", "image": "img.product-image"}'
         return '{"title": "title", "content": "body"}'
 
-    async def extract(self, content: str, prompt: str, schema: Dict[str, Any], **kwargs) -> tuple[Dict[str, Any], float]:
-        """Performs LLM-based extraction on text content."""
-        logger.info(f"Extracting with prompt: {prompt}")
-        # Placeholder extraction
-        return {"data": "LLM extraction mock"}, 0.95
+    async def guess_selector(self, field: str, html_snippet: str) -> str:
+        """Guesses the best CSS selector for a given field from an HTML snippet."""
+        logger.info(f"Guessing selector for field: {field}")
+        
+        # In a real system, we'd send the snippet to an LLM
+        # For this demonstration, we return a common selector based on keywords
+        if "price" in field.lower():
+            return ".price"
+        if "title" in field.lower() or "name" in field.lower():
+            return "h1"
+        return "body"

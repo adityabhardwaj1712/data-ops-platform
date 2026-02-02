@@ -1,14 +1,15 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, Outfit } from 'next/font/google'
 import './globals.css'
 import { ThemeProvider } from '@/components/theme-provider'
-import { Navigation } from '@/components/navigation'
+import { Sidebar } from '@/components/sidebar'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
+const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit' })
 
 export const metadata: Metadata = {
-  title: 'DataOps Platform',
-  description: 'Enterprise-grade data collection and validation platform',
+  title: 'ScraperPro - Enterprise Data Extraction',
+  description: 'High-performance, human-verified scraping infrastructure.',
 }
 
 export default function RootLayout({
@@ -18,17 +19,19 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={`${inter.variable} ${outfit.variable} font-sans`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
           enableSystem
           disableTransitionOnChange
         >
-          <div className="min-h-screen">
-            <Navigation />
-            <main className="container mx-auto px-4 py-8">
-              {children}
+          <div className="flex min-h-screen">
+            <Sidebar />
+            <main className="flex-1 pl-64 transition-all duration-300">
+              <div className="container mx-auto p-8 max-w-7xl">
+                {children}
+              </div>
             </main>
           </div>
         </ThemeProvider>
