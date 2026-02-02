@@ -91,6 +91,7 @@ app = FastAPI(
     description="Pro-level data scraping and quality assurance platform",
     version="2.0.0",
     lifespan=lifespan,
+    redirect_slashes=False,  # ✅ FIX: prevents 307 redirect issues
 )
 
 # -------------------------------------------------
