@@ -10,7 +10,6 @@ from app.db.models import (
     Task,
     TaskType,
     TaskStatus,
-    JobConfig,
     JobStatus as DBJobStatus,
 )
 from app.schemas import ScrapeRequest
@@ -18,20 +17,20 @@ from app.scraper.logic.registry import scraper_registry
 from app.llm.schema_builder import AISchemaBuilder
 from app.core.limits import limits
 
-# ✅ NEW IMPORTS FOR PREVIEW
+# Preview (STATIC ONLY)
 from app.scraper.engines.static import StaticStrategy
 from app.scraper.intelligence.preview import PreviewEngine
 
 router = APIRouter()
 
-
-# -------------------------------------------------------------------
-# CREATE SCRAPE JOB
-# -------------------------------------------------------------------
-@router.post("/")
+# =====================================================
+# CREATE SCRAPE JOB (NO SLASH BUG — FIXED)
+# =====================================================
+@router.post("", summary="Create scrape job")
+@router.post("/", include_in_schema=False)
 async def scrape_url(
     request: ScrapeRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     if request.max_pages > limits.MAX_PAGES_PER_URL:
         raise HTTPException(
@@ -39,13 +38,18 @@ async def scrape_url(
             detail=f"Max pages exceeded. Platform limit: {limits.MAX_PAGES_PER_URL}",
         )
 
-    urls = request.url_list if request.url_list else ([request.url] if request.url else [])
+    urls = (
+        request.url_list
+        if request.url_list
+        else ([request.url] if request.url else [])
+    )
+
     if not urls:
         raise HTTPException(status_code=400, detail="No URL(s) provided")
 
     job = Job(
         description=f"Scrape {len(urls)} URL(s)",
-        schema=request.schema,
+        schema=request.extract_schema,
         config={
             "urls": urls,
             "prompt": request.prompt,
@@ -63,17 +67,20 @@ async def scrape_url(
         sla_seconds=request.sla_seconds,
         webhook_url=request.webhook_url,
     )
+
     db.add(job)
     await db.commit()
     await db.refresh(job)
 
+    # Create tasks
     for url in urls:
-        task_payload = job.config.copy()
-        task_payload["url"] = url
+        payload = job.config.copy()
+        payload["url"] = url
+
         task = Task(
             job_id=job.id,
             type=TaskType.SCRAPE,
-            payload=task_payload,
+            payload=payload,
             status=TaskStatus.PENDING,
             is_seed=1,
         )
@@ -88,10 +95,9 @@ async def scrape_url(
         "message": f"Scraping job queued with {len(urls)} tasks.",
     }
 
-
-# -------------------------------------------------------------------
+# =====================================================
 # GET JOB STATUS
-# -------------------------------------------------------------------
+# =====================================================
 @router.get("/{job_id}")
 async def get_scrape_job(
     job_id: UUID,
@@ -124,10 +130,9 @@ async def get_scrape_job(
         ],
     }
 
-
-# -------------------------------------------------------------------
+# =====================================================
 # RERUN JOB
-# -------------------------------------------------------------------
+# =====================================================
 @router.post("/{job_id}/rerun")
 async def rerun_job(
     job_id: UUID,
@@ -136,37 +141,42 @@ async def rerun_job(
 ):
     result = await db.execute(select(Job).where(Job.id == job_id))
     job = result.scalar_one_or_none()
+
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
     job.status = DBJobStatus.RERUNNING
 
+    payload = job.config.copy()
+    if new_config:
+        payload.update(new_config)
+
     task = Task(
         job_id=job.id,
         type=TaskType.SCRAPE,
-        payload=job.config,
+        payload=payload,
         status=TaskStatus.PENDING,
     )
+
     db.add(task)
     await db.commit()
 
     return {"status": "rerun_queued", "job_id": str(job_id)}
 
-
-# -------------------------------------------------------------------
-# PREFLIGHT
-# -------------------------------------------------------------------
+# =====================================================
+# PREFLIGHT (USES REAL STRATEGY, SAFE)
+# =====================================================
 @router.post("/preflight")
 async def preflight_test(request: ScrapeRequest):
     scraper = await scraper_registry.get_scraper(request.url)
 
     result = await scraper.scrape(
         url=request.url,
-        schema=request.schema,
+        schema=request.extract_schema,
         job_id="preflight_" + str(uuid4()),
-        strategy=request.strategy.value,
-        stealth_mode=request.stealth_mode,
         timeout=request.timeout,
+        stealth_mode=request.stealth_mode,
+        wait_for_selector=request.wait_for_selector,
         filters=request.filters,
         prompt=request.prompt,
     )
@@ -175,16 +185,14 @@ async def preflight_test(request: ScrapeRequest):
         "success": result.success,
         "preview_data": result.data,
         "confidence": result.confidence,
-        "confidence_components": result.confidence_components,
         "failure_reason": result.failure_reason,
         "failure_message": result.failure_message,
         "errors": result.errors,
     }
 
-
-# -------------------------------------------------------------------
-# PREVIEW (STATIC ONLY – SAFE)
-# -------------------------------------------------------------------
+# =====================================================
+# PREVIEW (STATIC ONLY – SAFE & FAST)
+# =====================================================
 @router.post("/preview")
 async def preview_scrape(request: ScrapeRequest):
     static = StaticStrategy()
@@ -200,18 +208,12 @@ async def preview_scrape(request: ScrapeRequest):
             detail=f"Preview fetch failed: {str(e)}",
         )
 
-    # 🔍 DEBUG (TEMP – remove later)
-    print("HTML LENGTH:", len(html))
-    print("HTML SAMPLE:", html[:300])
-
     engine = PreviewEngine()
     return engine.preview(html, request.schema)
 
-
-
-# -------------------------------------------------------------------
-# AI SCHEMA
-# -------------------------------------------------------------------
+# =====================================================
+# AI SCHEMA BUILDER
+# =====================================================
 @router.post("/ai-schema")
 async def build_ai_schema(prompt: str):
     builder = AISchemaBuilder()

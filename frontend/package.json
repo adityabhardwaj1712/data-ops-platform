@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev ",
-    "build": "next build ",
+    "dev": "next dev",
+    "build": "next build",
     "start": "next start"
   },
   "dependencies": {
@@ -18,13 +18,16 @@
     "lucide-react": "^0.451.0",
     "next": "15.1.0",
     "next-themes": "^0.4.6",
-    "react": "19.0.0",
-    "react-dom": "19.0.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@types/react": "^18.2.45",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "tailwindcss": "^3.4.1",
+    "postcss": "^8.4.38",
+    "autoprefixer": "^10.4.19"
   }
 }

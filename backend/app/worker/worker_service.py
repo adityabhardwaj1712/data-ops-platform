@@ -8,7 +8,13 @@ from pathlib import Path
 from sqlalchemy import select, or_, desc, func, text
 
 from app.db.session import AsyncSessionLocal
-from app.db.models import Task, TaskStatus, Job, JobStatus, DatasetVersion
+from app.db.models import (
+    Task,
+    TaskStatus,
+    Job,
+    JobStatus,
+    DatasetVersion,
+)
 from app.scraper.logic.registry import scraper_registry
 from app.core.recovery import recover_stuck_tasks
 
@@ -20,10 +26,12 @@ class WorkerService:
     def __init__(self, concurrency: int = 5):
         self.concurrency = concurrency
 
+    # -------------------------------------------------
+    # START WORKERS
+    # -------------------------------------------------
     async def start(self):
         logger.info(f"Starting worker with {self.concurrency} threads")
 
-        # Recovery supervisor
         asyncio.create_task(self.recovery_loop())
 
         workers = [
@@ -33,8 +41,10 @@ class WorkerService:
 
         await asyncio.gather(*workers)
 
+    # -------------------------------------------------
+    # RECOVERY LOOP
+    # -------------------------------------------------
     async def recovery_loop(self):
-        """Periodically check for stuck tasks."""
         while True:
             try:
                 async with AsyncSessionLocal() as db:
@@ -42,8 +52,11 @@ class WorkerService:
             except Exception as e:
                 logger.error(f"Recovery loop error: {e}")
 
-            await asyncio.sleep(300)  # 5 minutes
+            await asyncio.sleep(300)
 
+    # -------------------------------------------------
+    # MAIN WORKER LOOP
+    # -------------------------------------------------
     async def worker_loop(self, worker_id: int):
         logger.info(f"Worker {worker_id} started")
 
@@ -59,64 +72,7 @@ class WorkerService:
                     logger.info(f"Worker {worker_id} executing task {task.id}")
 
                     try:
-                        # ----------------------------------
-                        # Fetch job
-                        # ----------------------------------
-                        job = await db.get(Job, task.job_id)
-                        if not job:
-                            raise ValueError(f"Job {task.job_id} not found")
-
-                        # ----------------------------------
-                        # Select scraper
-                        # ----------------------------------
-                        url = task.payload.get("url")
-                        if not url:
-                            raise ValueError("Task payload missing 'url'")
-
-                        scraper = await scraper_registry.get_scraper(url)
-
-                        # ----------------------------------
-                        # Sanitize payload (CRITICAL FIX)
-                        # ----------------------------------
-                        payload = dict(task.payload)
-                        payload.pop("url", None)  # ✅ REMOVE DUPLICATE
-
-                        # ----------------------------------
-                        # Execute scrape (URL PASSED ONCE)
-                        # ----------------------------------
-                        result = await scraper.scrape(
-                            url,
-                            schema=job.schema,
-                            job_id=str(job.id),
-                            db=db,
-                            **payload,
-                        )
-
-                        confidence = (
-                            result.data.get("_confidence", 1.0)
-                            if result.success and isinstance(result.data, dict)
-                            else 0.0
-                        )
-
-                        if result.success:
-                            task.status = (
-                                TaskStatus.NEEDS_REVIEW
-                                if confidence < 0.6
-                                else TaskStatus.COMPLETED
-                            )
-                            task.result = result.data
-                        else:
-                            task.status = TaskStatus.FAILED
-                            task.failure_reason = result.failure_reason
-                            task.failure_message = result.failure_message
-
-                        await db.commit()
-
-                        # ----------------------------------
-                        # Finalize job if all tasks done
-                        # ----------------------------------
-                        await self.finalize_job_if_done(db, job)
-
+                        await self.execute_task(db, task)
                     except Exception as e:
                         logger.exception(f"Task {task.id} execution failed")
                         task.status = TaskStatus.FAILED
@@ -127,11 +83,56 @@ class WorkerService:
                 logger.exception(f"Worker {worker_id} crashed")
                 await asyncio.sleep(2)
 
+    # -------------------------------------------------
+    # TASK EXECUTION (CLEAN + SAFE)
+    # -------------------------------------------------
+    async def execute_task(self, db, task: Task):
+        job = await db.get(Job, task.job_id)
+        if not job:
+            raise ValueError(f"Job {task.job_id} not found")
+
+        url = task.payload.get("url")
+        if not url:
+            raise ValueError("Task payload missing 'url'")
+
+        scraper = await scraper_registry.get_scraper(url)
+
+        # 🔥 CRITICAL FIX: remove duplicate url
+        payload = dict(task.payload)
+        payload.pop("url", None)
+
+        result = await scraper.scrape(
+            url,
+            schema=job.extract_schema,
+            job_id=str(job.id),
+            **payload,
+        )
+
+        confidence = (
+            result.data.get("_confidence", 1.0)
+            if result.success and isinstance(result.data, dict)
+            else 0.0
+        )
+
+        if result.success:
+            task.status = (
+                TaskStatus.NEEDS_REVIEW
+                if confidence < 0.6
+                else TaskStatus.COMPLETED
+            )
+            task.result = result.data
+        else:
+            task.status = TaskStatus.FAILED
+            task.failure_reason = result.failure_reason
+            task.failure_message = result.failure_message
+
+        await db.commit()
+        await self.finalize_job_if_done(db, job)
+
+    # -------------------------------------------------
+    # FETCH NEXT TASK
+    # -------------------------------------------------
     async def fetch_task(self, db):
-        """
-        Priority-based polling with SLA-aware ordering.
-        PostgreSQL-safe (no make_interval).
-        """
         stmt = (
             select(Task)
             .join(Job, Task.job_id == Job.id)
@@ -143,7 +144,8 @@ class WorkerService:
             )
             .order_by(
                 Task.created_at
-                + func.coalesce(Job.sla_seconds, 0) * text("INTERVAL '1 second'"),
+                + func.coalesce(Job.sla_seconds, 0)
+                * text("INTERVAL '1 second'"),
                 desc(Task.priority),
                 Task.created_at,
             )
@@ -162,6 +164,9 @@ class WorkerService:
 
         return None
 
+    # -------------------------------------------------
+    # FINALIZE JOB
+    # -------------------------------------------------
     async def finalize_job_if_done(self, db, job: Job):
         stmt = select(Task).where(Task.job_id == job.id)
         res = await db.execute(stmt)
@@ -176,13 +181,12 @@ class WorkerService:
 
                 results = []
                 for t in tasks:
-                    if t.result:
-                        if isinstance(t.result, list):
-                            results.extend(t.result)
-                        elif isinstance(t.result, dict):
-                            r = t.result.copy()
-                            r.setdefault("_source_url", t.payload.get("url"))
-                            results.append(r)
+                    if isinstance(t.result, dict):
+                        r = t.result.copy()
+                        r.setdefault("_source_url", t.payload.get("url"))
+                        results.append(r)
+                    elif isinstance(t.result, list):
+                        results.extend(t.result)
 
                 os.makedirs("/app/data/artifacts", exist_ok=True)
                 path = Path(f"/app/data/artifacts/job_{job.id}_results.json")
@@ -197,20 +201,20 @@ class WorkerService:
                 ]
                 avg_conf = sum(confidences) / len(confidences) if confidences else 100
 
-                dv = DatasetVersion(
-                    job_id=job.id,
-                    version=1,
-                    data_location=str(path),
-                    row_count=len(results),
-                    change_summary={"avg_confidence": avg_conf},
+                db.add(
+                    DatasetVersion(
+                        job_id=job.id,
+                        version=1,
+                        data_location=str(path),
+                        row_count=len(results),
+                        change_summary={"avg_confidence": avg_conf},
+                    )
                 )
-                db.add(dv)
-
             else:
                 job.status = JobStatus.FAILED_FINAL
 
             await db.commit()
 
 
-# Global instance
+# GLOBAL INSTANCE
 worker_service = WorkerService()
