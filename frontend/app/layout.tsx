@@ -26,10 +26,11 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <div className="flex min-h-screen">
+          <div className="flex min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-[#050509] to-[#050509]">
             <Sidebar />
-            <main className="flex-1 pl-64 transition-all duration-300">
-              <div className="container mx-auto p-8 max-w-7xl">
+            <main className="flex-1 pl-64 transition-all duration-300 relative">
+              <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))] opacity-[0.02] pointer-events-none" />
+              <div className="container mx-auto p-6 lg:p-10 max-w-[1600px] relative z-10">
                 {children}
               </div>
             </main>

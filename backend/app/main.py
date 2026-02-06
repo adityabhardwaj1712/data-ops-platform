@@ -5,7 +5,6 @@ import os
 
 from app.api import (
     jobs, scrape, hitl, robots, export
-    # FUTURE_PHASE: analytics, search, backup, notifications, batch, visualization, ai, quality, automation, templates
 )
 from app.core.config import settings
 from app.core.logging_config import setup_logging
@@ -56,9 +55,6 @@ async def lifespan(app: FastAPI):
     # Scheduler (API-only mode)
     # -------------------------------------------------
     if settings.ENABLE_BACKGROUND_JOBS and not worker_enabled:
-        # from app.services.scheduler import scheduler
-        # await scheduler.start()
-        # logger.info("Scheduler started")
         pass
 
     logger.info("Platform ready to accept requests")
@@ -75,9 +71,6 @@ async def lifespan(app: FastAPI):
         logger.info("Background worker stopped")
 
     if settings.ENABLE_BACKGROUND_JOBS and not worker_enabled:
-        # from app.services.scheduler import scheduler
-        # await scheduler.stop()
-        # logger.info("Scheduler stopped")
         pass
 
     await engine.dispose()
@@ -114,11 +107,8 @@ app.add_middleware(
 
 app.include_router(scrape.router, prefix="/api/scrape", tags=["scrape"])
 app.include_router(jobs.router, prefix="/api/jobs", tags=["jobs"])
-# app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(hitl.router, prefix="/api/hitl", tags=["hitl"])
-# app.include_router(metrics.router, prefix="/api/metrics", tags=["metrics"])
 app.include_router(robots.router, prefix="/api/robots", tags=["robots"])
-# app.include_router(websocket.router, prefix="/ws", tags=["websocket"])
 
 # Health Checks & Static Files
 # -------------------------------------------------

@@ -5,7 +5,11 @@ import json
 import argparse
 
 # Add backend to path
-sys.path.append(os.path.join(os.getcwd(), "backend"))
+import os
+import sys
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+sys.path.append(os.path.join(project_root, "backend"))
 
 from app.scraper.logic.generic import GenericScraper
 from app.llm.schema_builder import AISchemaBuilder

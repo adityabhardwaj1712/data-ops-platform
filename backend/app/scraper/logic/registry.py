@@ -116,10 +116,10 @@ def initialize_scrapers() -> None:
     from app.scraper.logic.generic import GenericScraper
 
     scraper_registry.register(LinkedInScraper())
+    scraper_registry.register(ProductScraper())
     scraper_registry.register(StaticStrategy())
     scraper_registry.register(BrowserStrategy())
     scraper_registry.register(StealthStrategy())
-    scraper_registry.register(ProductScraper())
     scraper_registry.register(GenericScraper(), is_default=True)
 
 

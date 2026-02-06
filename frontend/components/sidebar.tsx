@@ -2,24 +2,22 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { 
-  Shield, 
-  LayoutDashboard, 
-  Globe, 
-  Search, 
-  Settings, 
-  Zap, 
-  Layers, 
-  Activity 
+import {
+  Shield,
+  LayoutDashboard,
+  Globe,
+  Search,
+  Settings,
+  Zap,
+  Layers,
+  Activity
 } from "lucide-react"
 
 const NAV_ITEMS = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/" },
-  { label: "Tasks", icon: Layers, href: "/tasks" },
   { label: "Jobs", icon: Globe, href: "/jobs" },
   { label: "Scraper Engine", icon: Search, href: "/scrape" },
   { label: "Review Data", icon: Shield, href: "/review" },
-  { label: "Analytics", icon: Activity, href: "/analytics" },
   { label: "Settings", icon: Settings, href: "/settings" },
 ]
 
@@ -45,12 +43,13 @@ export function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={isActive ? "sidebar-item-active" : "sidebar-item"}
+                className={`sidebar-item group relative overflow-hidden ${isActive ? "premium-glow text-white" : "text-muted-foreground hover:text-white"}`}
               >
-                <item.icon className={`h-4 w-4 ${isActive ? "text-primary-foreground" : ""}`} />
-                <span className="text-sm font-medium">{item.label}</span>
+                <div className={`absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 transition-opacity duration-300 ${isActive ? "opacity-100" : "group-hover:opacity-50"}`} />
+                <item.icon className={`h-4 w-4 relative z-10 transition-colors ${isActive ? "text-primary-foreground" : "group-hover:text-primary"}`} />
+                <span className="text-sm font-medium relative z-10">{item.label}</span>
                 {isActive && (
-                  <div className="absolute right-2 h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(124,58,237,0.5)]" />
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2 h-8 w-1 bg-primary rounded-l-full shadow-[0_0_10px_rgba(124,58,237,0.8)]" />
                 )}
               </Link>
             )

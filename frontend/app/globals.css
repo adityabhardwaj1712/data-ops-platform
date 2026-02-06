@@ -20,7 +20,7 @@
     --muted-foreground: 240 5% 64.9%;
 
     --border: 240 3.7% 15.9%;
-    --radius: 1rem;
+    --radius: 0.75rem;
   }
 }
 
@@ -86,7 +86,33 @@
     color: transparent;
   }
 
-  /* Hide scrollbar */
+  /* Premium Glow Effect */
+  .premium-glow {
+    box-shadow: 0 0 20px rgba(124, 58, 237, 0.5),
+                inset 0 0 10px rgba(124, 58, 237, 0.2);
+    border-color: rgba(139, 92, 246, 0.5);
+    background: linear-gradient(to right, rgba(124, 58, 237, 0.1), rgba(139, 92, 246, 0.05));
+  }
+
+  /* Refined Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
