@@ -106,21 +106,47 @@ scraper_registry = ScraperRegistry()
 def initialize_scrapers() -> None:
     """
     Order matters:
-    static → browser → stealth → domain → generic
+    Domain-specific → Document/API → Static → Browser → Stealth → Generic
     """
+    # Import all scraper strategies
     from app.scraper.engines.static import StaticStrategy
     from app.scraper.engines.browser import BrowserStrategy
     from app.scraper.engines.stealth import StealthStrategy
     from app.scraper.engines.linkedin import LinkedInScraper
     from app.scraper.logic.product import ProductScraper
     from app.scraper.logic.generic import GenericScraper
+    
+    # Import new scrapers
+    from app.scraper.engines.api_scraper import APIScraper
+    from app.scraper.engines.crawler import CrawlerScraper
+    from app.scraper.engines.document_scraper import DocumentScraper
+    from app.scraper.engines.authenticated import AuthenticatedScraper
+    from app.scraper.engines.ocr_scraper import OCRScraper
+    from app.scraper.engines.streaming_scraper import StreamingScraper
 
+    # Register in priority order
+    # 1. Domain-specific scrapers (highest priority)
     scraper_registry.register(LinkedInScraper())
     scraper_registry.register(ProductScraper())
+    
+    # 2. Document and API scrapers (file-specific)
+    scraper_registry.register(DocumentScraper())
+    scraper_registry.register(OCRScraper())
+    scraper_registry.register(APIScraper())
+    
+    # 3. Standard web scrapers
     scraper_registry.register(StaticStrategy())
     scraper_registry.register(BrowserStrategy())
     scraper_registry.register(StealthStrategy())
+    
+    # 4. Multi-page and streaming (explicit selection)
+    scraper_registry.register(CrawlerScraper())
+    scraper_registry.register(StreamingScraper())
+    scraper_registry.register(AuthenticatedScraper())
+    
+    # 5. Generic fallback (lowest priority)
     scraper_registry.register(GenericScraper(), is_default=True)
 
 
 initialize_scrapers()
+

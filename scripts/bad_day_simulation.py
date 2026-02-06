@@ -21,7 +21,10 @@ import json
 from datetime import datetime
 
 # Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add parent directory to path
+root_dir = Path(__file__).parent.parent
+backend_dir = root_dir / "backend"
+sys.path.insert(0, str(backend_dir))
 
 from app.core.limits import limits, get_mode_specific_limits
 from app.core.recovery import JobRecoveryManager

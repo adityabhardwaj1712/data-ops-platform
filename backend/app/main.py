@@ -113,9 +113,17 @@ app.include_router(robots.router, prefix="/api/robots", tags=["robots"])
 # Health Checks & Static Files
 # -------------------------------------------------
 from fastapi.staticfiles import StaticFiles
-os.makedirs("/app/data/artifacts", exist_ok=True)
-os.makedirs("/app/data/exports", exist_ok=True)
-app.mount("/data", StaticFiles(directory="/app/data"), name="data")
+
+# Robust path handling for Windows/Linux
+BASE_DIR = os.getcwd()
+DATA_DIR = os.path.join(BASE_DIR, "data")
+ARTIFACTS_DIR = os.path.join(DATA_DIR, "artifacts")
+EXPORTS_DIR = os.path.join(DATA_DIR, "exports")
+
+os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+os.makedirs(EXPORTS_DIR, exist_ok=True)
+
+app.mount("/data", StaticFiles(directory=DATA_DIR), name="data")
 
 app.include_router(health_router, tags=["health"])
 

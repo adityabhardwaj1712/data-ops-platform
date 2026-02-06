@@ -222,3 +222,170 @@ async def build_ai_schema(prompt: str):
         "prompt": prompt,
         "generated_schema": schema,
     }
+
+# =====================================================
+# API SCRAPING
+# =====================================================
+@router.post("/api-scrape")
+async def scrape_api(
+    api_url: str,
+    extract_schema: Dict[str, str],
+    headers: Optional[Dict[str, str]] = None,
+    params: Optional[Dict[str, Any]] = None,
+    max_pages: int = 1
+):
+    """
+    Direct API scraping endpoint for JSON endpoints
+    """
+    from app.scraper.engines.api_scraper import APIScraper
+    
+    scraper = APIScraper()
+    result = await scraper.scrape(
+        url=api_url,
+        schema=extract_schema,
+        job_id="api_" + str(uuid4()),
+        headers=headers,
+        params=params,
+        max_pages=max_pages
+    )
+    
+    return {
+        "success": result.success,
+        "data": result.data,
+        "pages_scraped": result.pages_scraped,
+        "confidence": result.confidence,
+        "metadata": result.metadata
+    }
+
+# =====================================================
+# MULTI-PAGE CRAWLING
+# =====================================================
+@router.post("/crawl")
+async def start_crawl(
+    start_url: str,
+    extract_schema: Dict[str, str],
+    max_depth: int = 2,
+    max_pages: int = 50,
+    follow_external_links: bool = False,
+    url_patterns: Optional[List[str]] = None
+):
+    """
+    Multi-page crawling endpoint
+    """
+    from app.scraper.engines.crawler import CrawlerScraper
+    from app.schemas import CrawlConfig
+    
+    crawl_config = CrawlConfig(
+        max_depth=max_depth,
+        max_pages=max_pages,
+        follow_external_links=follow_external_links,
+        url_patterns=url_patterns
+    )
+    
+    scraper = CrawlerScraper()
+    result = await scraper.crawl(start_url, crawl_config, extract_schema)
+    
+    return {
+        "success": result.success,
+        "data": result.data,
+        "pages_crawled": result.pages_scraped,
+        "metadata": result.metadata
+    }
+
+# =====================================================
+# DOCUMENT EXTRACTION
+# =====================================================
+@router.post("/document-extract")
+async def extract_document(
+    document_url: str,
+    extract_tables: bool = True,
+    extract_text: bool = True,
+    page_range: Optional[str] = None
+):
+    """
+    PDF/Excel/CSV extraction endpoint
+    """
+    from app.scraper.engines.document_scraper import DocumentScraper
+    from app.schemas import DocumentConfig
+    
+    doc_config = DocumentConfig(
+        extract_tables=extract_tables,
+        extract_text=extract_text,
+        page_range=page_range
+    )
+    
+    scraper = DocumentScraper()
+    result = await scraper.extract(document_url, extract_tables, extract_text)
+    
+    return {
+        "success": result.success,
+        "data": result.data,
+        "metadata": result.metadata
+    }
+
+# =====================================================
+# REAL-TIME STREAMING
+# =====================================================
+@router.post("/streaming/start")
+async def start_streaming(
+    url: str,
+    extract_schema: Dict[str, str],
+    poll_interval_seconds: int = 60,
+    max_duration_minutes: int = 60,
+    change_threshold: float = 0.1,
+    webhook_url: Optional[str] = None
+):
+    """
+    Start real-time monitoring
+    """
+    from app.scraper.engines.streaming_scraper import StreamingScraper
+    from app.schemas import StreamingConfig
+    
+    streaming_config = StreamingConfig(
+        poll_interval_seconds=poll_interval_seconds,
+        max_duration_minutes=max_duration_minutes,
+        change_threshold=change_threshold,
+        webhook_url=webhook_url
+    )
+    
+    scraper = StreamingScraper()
+    job_id = await scraper.start_monitoring(url, streaming_config, extract_schema)
+    
+    return {
+        "job_id": job_id,
+        "status": "monitoring_started",
+        "config": {
+            "poll_interval": poll_interval_seconds,
+            "max_duration": max_duration_minutes
+        }
+    }
+
+@router.post("/streaming/{job_id}/stop")
+async def stop_streaming(job_id: UUID):
+    """
+    Stop real-time monitoring
+    """
+    from app.scraper.engines.streaming_scraper import StreamingScraper
+    
+    await StreamingScraper.stop_monitoring(str(job_id))
+    return {"status": "stopped", "job_id": str(job_id)}
+
+@router.get("/streaming/{job_id}/status")
+async def get_streaming_status(job_id: UUID):
+    """
+    Get status of streaming job
+    """
+    from app.scraper.engines.streaming_scraper import StreamingScraper
+    
+    status = StreamingScraper.get_job_status(str(job_id))
+    
+    if not status:
+        raise HTTPException(status_code=404, detail="Streaming job not found")
+    
+    return {
+        "job_id": str(job_id),
+        "status": status.get("status"),
+        "check_count": status.get("check_count"),
+        "changes_detected": status.get("changes_detected"),
+        "last_check": status.get("last_check").isoformat() if status.get("last_check") else None
+    }

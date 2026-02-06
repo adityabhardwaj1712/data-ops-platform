@@ -228,32 +228,58 @@ export default function ScrapePage() {
                   />
                 )}
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between ml-1">
-                  <label className="text-sm font-medium text-muted-foreground">Scraping Strategy</label>
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <span className={`text-[10px] uppercase font-bold tracking-tighter transition-colors ${debug ? 'text-primary' : 'text-muted-foreground'}`}>
-                      Debug Mode
-                    </span>
-                    <div
-                      onClick={() => setDebug(!debug)}
-                      className={`h-4 w-8 rounded-full border border-white/10 transition-colors p-0.5 flex ${debug ? 'bg-primary border-primary justify-end' : 'bg-white/5 justify-start'}`}
-                    >
-                      <div className="h-2.5 w-2.5 rounded-full bg-white shadow-sm" />
-                    </div>
-                  </label>
-                </div>
+            </div>
+
+            {/* Strategy Selection Section */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between ml-1">
+                <label className="text-sm font-medium text-muted-foreground">Choose Scraping Strategy</label>
+                <label className="flex items-center gap-2 cursor-pointer group">
+                  <span className={`text-[10px] uppercase font-bold tracking-tighter transition-colors ${debug ? 'text-primary' : 'text-muted-foreground'}`}>
+                    Debug Mode
+                  </span>
+                  <div
+                    onClick={() => setDebug(!debug)}
+                    className={`h-4 w-8 rounded-full border border-white/10 transition-colors p-0.5 flex ${debug ? 'bg-primary border-primary justify-end' : 'bg-white/5 justify-start'}`}
+                  >
+                    <div className="h-2.5 w-2.5 rounded-full bg-white shadow-sm" />
+                  </div>
+                </label>
+              </div>
+
+              {/* Import and use StrategySelector */}
+              <div className="p-4 bg-white/5 rounded-lg border border-white/10">
                 <Select value={strategy} onValueChange={setStrategy}>
                   <SelectTrigger className="bg-white/5 border-white/10 h-11">
                     <SelectValue placeholder="Select Strategy" />
                   </SelectTrigger>
                   <SelectContent className="bg-[#0f1115] border-white/10 text-white">
-                    <SelectItem value="auto" className="hover:bg-primary/20">Auto (Smart Ladder)</SelectItem>
-                    <SelectItem value="static" className="hover:bg-primary/20">Static (Fast HTTP)</SelectItem>
-                    <SelectItem value="browser" className="hover:bg-primary/20">Browser (Playwright)</SelectItem>
-                    <SelectItem value="stealth" className="hover:bg-primary/20">Stealth (Anti-Bot)</SelectItem>
+                    <SelectItem value="auto" className="hover:bg-primary/20">🎯 Auto-Detect (Recommended)</SelectItem>
+                    <SelectItem value="static" className="hover:bg-primary/20">⚡ Static HTML (Fastest)</SelectItem>
+                    <SelectItem value="browser" className="hover:bg-primary/20">🌐 JavaScript Rendering</SelectItem>
+                    <SelectItem value="api" className="hover:bg-primary/20">🔌 API Scraping (10x Faster)</SelectItem>
+                    <SelectItem value="crawler" className="hover:bg-primary/20">🕸️ Multi-Page Crawler</SelectItem>
+                    <SelectItem value="document" className="hover:bg-primary/20">📄 Document Extraction (PDF/Excel)</SelectItem>
+                    <SelectItem value="ocr" className="hover:bg-primary/20">🖼️ OCR (Image-to-Text)</SelectItem>
+                    <SelectItem value="streaming" className="hover:bg-primary/20">📡 Real-Time Monitoring</SelectItem>
+                    <SelectItem value="auth" className="hover:bg-primary/20">🔐 Authenticated (Login Required)</SelectItem>
+                    <SelectItem value="stealth" className="hover:bg-primary/20">🥷 Stealth (Anti-Bot)</SelectItem>
                   </SelectContent>
                 </Select>
+
+                {/* Strategy Description */}
+                <p className="text-xs text-muted-foreground mt-2 ml-1">
+                  {strategy === 'auto' && '✨ Automatically selects the best strategy based on URL and site structure'}
+                  {strategy === 'static' && '⚡ Fast HTTP requests for server-rendered pages (blogs, news sites)'}
+                  {strategy === 'browser' && '🌐 Full browser automation for React/Vue/Angular apps'}
+                  {strategy === 'api' && '🔌 Direct JSON endpoint scraping - 10x faster than browser'}
+                  {strategy === 'crawler' && '🕸️ Follow links and scrape multiple pages automatically'}
+                  {strategy === 'document' && '📄 Extract data from PDF, Excel, CSV, and Word files'}
+                  {strategy === 'ocr' && '🖼️ Extract text from images and scanned documents'}
+                  {strategy === 'streaming' && '📡 Monitor URLs for changes in real-time'}
+                  {strategy === 'auth' && '🔐 Scrape content behind login walls (use with permission)'}
+                  {strategy === 'stealth' && '🥷 Advanced anti-bot evasion techniques'}
+                </p>
               </div>
             </div>
 

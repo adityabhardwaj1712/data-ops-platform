@@ -23,10 +23,10 @@ class ProductScraper(BaseScraper):
         self.scorer = ConfidenceScorer()
 
     async def can_handle(self, url: str) -> bool:
-        # Matches Amazon, eBay, Walmart, Target, BestBuy, etc.
+        # Matches Amazon, eBay, Walmart, Target, BestBuy, Flipkart etc.
         patterns = [
             "amazon.", "ebay.", "walmart.", "target.com", 
-            "bestbuy.com", "aliexpress.", "etsy.com"
+            "bestbuy.com", "aliexpress.", "etsy.com", "flipkart.com"
         ]
         return any(p in url.lower() for p in patterns)
 
@@ -41,12 +41,14 @@ class ProductScraper(BaseScraper):
         
         try:
             # Product sites almost always need browser for reliable pricedata
+            # Force stealth mode and headless for better success rates
             content, html, screenshot = await self.fetch_with_retry(
                 self.browser_strategy.fetch,
                 url,
                 timeout=kwargs.get("timeout", 45),
                 take_screenshot=True,
-                wait_until="networkidle"
+                wait_until="domcontentloaded",  # faster than networkidle
+                stealth_mode=True
             )
 
             if not html:
@@ -54,6 +56,8 @@ class ProductScraper(BaseScraper):
 
             # Deep Fallback Selectors for Price
             PRICE_SELECTORS = [
+                # Flipkart
+                "div._30jeq3._16Jk6d", "div._30jeq3",
                 # Amazon
                 "span.a-price-whole", "#priceblock_ourprice", "span.a-offscreen",
                 # eBay
@@ -66,7 +70,11 @@ class ProductScraper(BaseScraper):
             ]
             
             TITLE_SELECTORS = [
+                # Flipkart
+                "span.B_NuCI",
+                # Amazon
                 "#productTitle", "#itemTitle", "h1.prod-ProductTitle", 
+                # Generic
                 "h1", ".product-name", "[itemprop='name']"
             ]
 
@@ -90,6 +98,7 @@ class ProductScraper(BaseScraper):
                     if el:
                         price_text = el.get_text().strip()
                         # Clean currency and formatting
+                        # Support Rupees (₹) and Dollars ($)
                         digits = "".join(c for c in price_text if c.isdigit() or c == '.')
                         if digits and '.' in digits:
                             price = digits

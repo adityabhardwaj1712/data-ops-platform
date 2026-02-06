@@ -1,13 +1,32 @@
 from urllib.parse import urlparse
+import logging
+
+logger = logging.getLogger(__name__)
 
 
-def robots_checker(url: str) -> bool:
+class RobotsChecker:
     """
-    Check whether scraping is allowed for a URL.
-    For now, this is a permissive stub.
+    Check robots.txt compliance for URLs.
     """
-    parsed = urlparse(url)
+    
+    async def check_url_allowed(self, url: str) -> bool:
+        """
+        Check whether scraping is allowed for a URL.
+        
+        Args:
+            url: URL to check
+            
+        Returns:
+            bool: True if allowed, False otherwise
+        """
+        parsed = urlparse(url)
+        
+        # Future: fetch and parse robots.txt here
+        # Currently allow all
+        logger.debug(f"Robots.txt check for {parsed.netloc}: allowed")
+        return True
 
-    # Future: fetch and parse robots.txt here
-    # Currently allow all
-    return True
+
+# Global instance
+robots_checker = RobotsChecker()
+

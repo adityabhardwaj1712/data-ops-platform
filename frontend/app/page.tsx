@@ -1,4 +1,5 @@
 "use client"
+import React from 'react'
 
 import { SystemStatus } from "@/components/dashboard/SystemStatus"
 import { AISchemaBuilder } from "@/components/dashboard/AISchemaBuilder"
@@ -9,7 +10,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 pt-6 animate-in">
       <div className="text-center md:text-left mb-4 text-xs text-muted-foreground uppercase tracking-widest font-mono">
-        Monday, February 2, 2026 at 2:52:27 PM MST
+        {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
       </div>
 
       <div className="stagger-1">
